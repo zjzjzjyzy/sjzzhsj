@@ -99,7 +99,12 @@
     const SUPABASE_URL = "https://你的项目ID.supabase.co";      // 例如 https://xxxxx.supabase.co
     const SUPABASE_ANON_KEY = "你的anon公钥";                   // 项目设置 -> API 中的 anon public key
     
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // 创建客户端时禁用 session 持久化，避免被浏览器的跟踪保护阻止 localStorage 访问
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+            persistSession: false   // 关键修复：不读写 localStorage
+        }
+    });
     
     // 表名定义（需与Supabase中创建的表名一致）
     const WECHAT_TABLE = "wechat_accounts";
@@ -457,7 +462,7 @@
             { key: "actions", label: "⚙️操作" }
         ];
         
-        thead.innerHTML = `<tr>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+        thead.innerHTML = `<table>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
         
         if (accounts.length === 0) {
             tbody.innerHTML = `<tr class="empty-row"><td colspan="${columns.length}" style="text-align:center; padding:40px;">✨ 暂无账号，点击「新增账户」开始添加 ✨</td></tr>`;
