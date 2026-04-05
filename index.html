@@ -95,30 +95,28 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-    // ======================= Supabase 配置（请替换为你的实际值）=======================
+    // ======================= 请替换为你的实际值 =======================
     const SUPABASE_URL = "https://你的项目ID.supabase.co";      // 例如 https://xxxxx.supabase.co
     const SUPABASE_ANON_KEY = "你的anon公钥";                   // 项目设置 -> API 中的 anon public key
     
-    // 创建客户端时禁用 session 持久化，避免被浏览器的跟踪保护阻止 localStorage 访问
+    // 创建客户端（禁用 session 持久化，避免跟踪保护阻止 localStorage）
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-            persistSession: false   // 关键修复：不读写 localStorage
-        }
+        auth: { persistSession: false }
     });
     
-    // 表名定义（需与Supabase中创建的表名一致）
+    // 表名定义
     const WECHAT_TABLE = "wechat_accounts";
     const QQ_TABLE = "qq_accounts";
     
-    // ======================= 业务常量 =======================
-    const NINE_GRID_DAILY_COST_WAN = 2000;   // 每天九格消耗2000万哈弗币
-    const HB_TO_RMB_RATE = 38;               // 38万哈弗币 = 1元
+    // 业务常量
+    const NINE_GRID_DAILY_COST_WAN = 2000;
+    const HB_TO_RMB_RATE = 38;
     
     let wechatAccounts = [];
     let qqAccounts = [];
     let currentView = "wechat";
     
-    // ======================= 辅助函数 =======================
+    // 辅助函数
     function showToast(msg) {
         let toast = document.querySelector(".toast-notice");
         if (toast) toast.remove();
@@ -140,7 +138,6 @@
         } else if (overlay) overlay.remove();
     }
     
-    // ======================= 安全箱覆盖逻辑 =======================
     function isCoverConditionMet(acc) {
         const gridDays = Number(acc.grid9Days) || 0;
         const hb = Number(acc.hbCoin) || 0;
@@ -165,7 +162,6 @@
         return changed;
     }
     
-    // 静默同步所有账号安全箱（加载/保存后调用）
     function silentSyncAllAccounts() {
         let any = false;
         for (let acc of wechatAccounts) if (syncSafeBoxByCondition(acc, false)) any = true;
@@ -173,7 +169,6 @@
         if (any) saveToCloud();
     }
     
-    // ======================= 数据标准化 =======================
     function normalizeAccount(acc) {
         if (acc.gameName === undefined) acc.gameName = "";
         if (acc.bindAccount === undefined) acc.bindAccount = "未绑定";
@@ -200,7 +195,6 @@
         }
     }
     
-    // ======================= 云端操作 =======================
     async function loadFromCloud() {
         showLoading(true);
         try {
@@ -216,7 +210,7 @@
             
             wechatAccounts.forEach(normalizeAccount);
             qqAccounts.forEach(normalizeAccount);
-            silentSyncAllAccounts();  // 触发安全箱同步（但不额外弹窗）
+            silentSyncAllAccounts();
             renderTable();
             showToast("✅ 数据已从云端同步");
         } catch (err) {
@@ -233,25 +227,16 @@
     async function saveToCloud() {
         showLoading(true);
         try {
-            // 先删除两张表的所有记录，再批量插入（全量替换策略）
-            const [delWechat, delQQ] = await Promise.all([
+            await Promise.all([
                 supabase.from(WECHAT_TABLE).delete().neq("id", 0),
                 supabase.from(QQ_TABLE).delete().neq("id", 0)
             ]);
-            if (delWechat.error) throw delWechat.error;
-            if (delQQ.error) throw delQQ.error;
-            
-            // 准备插入数据：移除可能存在的 id 字段（避免主键冲突）
             const wechatData = wechatAccounts.map(({ id, ...rest }) => rest);
             const qqData = qqAccounts.map(({ id, ...rest }) => rest);
-            
-            const [insWechat, insQQ] = await Promise.all([
+            await Promise.all([
                 supabase.from(WECHAT_TABLE).insert(wechatData),
                 supabase.from(QQ_TABLE).insert(qqData)
             ]);
-            if (insWechat.error) throw insWechat.error;
-            if (insQQ.error) throw insQQ.error;
-            
             showToast("💾 数据已保存到云端");
         } catch (err) {
             console.error(err);
@@ -281,11 +266,9 @@
         }
     }
     
-    // ======================= 状态变更 & 字段更新 =======================
     function handleStatusChange(account, oldStatus, newStatus) {
         const now = Date.now();
         if (oldStatus === "售出中" && newStatus === "未售") {
-            // 累计销售额，清空本次售价，重置计时，清零哈弗币
             account.totalSaleAmount = (account.totalSaleAmount || 0) + (account.currentSaleAmount || 0);
             account.currentSaleAmount = 0;
             account.lastStatusChangeTime = now;
@@ -355,7 +338,6 @@
         renderTable();
     }
     
-    // ======================= 统计函数 =======================
     function computeGlobalTotalSales() {
         let total = 0;
         wechatAccounts.forEach(acc => total += (acc.totalSaleAmount || 0));
@@ -379,7 +361,6 @@
         document.getElementById("globalHbEstimate").innerText = computeGlobalHbValue().toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     
-    // ======================= 内联编辑 =======================
     function escapeHtml(str) { return String(str ?? "").replace(/[&<>]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[m])); }
     function escapeAttr(str) { return String(str ?? "").replace(/[&<>"]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[m])); }
     
@@ -428,7 +409,6 @@
         editor.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } else if (e.key === "Escape") cancel(); });
     }
     
-    // ======================= 渲染表格 =======================
     function getDaysSinceLastSale(acc) {
         if (acc.status !== "未售") return 0;
         if (!acc.lastStatusChangeTime) return 0;
@@ -462,7 +442,7 @@
             { key: "actions", label: "⚙️操作" }
         ];
         
-        thead.innerHTML = `<table>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+        thead.innerHTML = `<tr>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
         
         if (accounts.length === 0) {
             tbody.innerHTML = `<tr class="empty-row"><td colspan="${columns.length}" style="text-align:center; padding:40px;">✨ 暂无账号，点击「新增账户」开始添加 ✨</td></tr>`;
@@ -509,7 +489,6 @@
         document.getElementById("totalSalesAll").innerText = grandTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + " 元";
         updateGlobalStats();
         
-        // 绑定编辑事件
         document.querySelectorAll(".editable-cell").forEach(cell => {
             cell.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -523,7 +502,6 @@
             });
         });
         
-        // 绑定删除事件
         document.querySelectorAll(".delete-btn").forEach(btn => {
             btn.addEventListener("click", async (e) => {
                 e.stopPropagation();
@@ -538,7 +516,6 @@
         });
     }
     
-    // ======================= 业务操作 =======================
     async function addNewAccount() {
         let newName = prompt("请输入昵称", "新账号");
         if (newName === null) return;
@@ -587,7 +564,6 @@
         renderTable();
     }
     
-    // ======================= 启动应用 =======================
     document.addEventListener("DOMContentLoaded", () => {
         loadFromCloud();
         document.getElementById("addNewBtn").addEventListener("click", addNewAccount);
