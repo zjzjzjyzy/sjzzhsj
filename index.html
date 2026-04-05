@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>哈弗币专业管家 | 云端同步版 (Supabase)</title>
+    <style>
+        * { box-sizing: border-box; font-family: system-ui, 'Segoe UI', sans-serif; }
+        body { background: #eef2f9; margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; }
+        .dashboard { width: 100%; max-width: 100%; background: white; border-radius: 28px; box-shadow: 0 20px 35px -12px rgba(0,0,0,0.15); overflow-x: auto; }
+        .header { padding: 18px 24px; background: linear-gradient(135deg, #0b2b3b, #1e3a4d); color: white; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
+        .title h1 { margin: 0; font-size: 1.7rem; font-weight: 600; }
+        .title p { margin: 5px 0 0; font-size: 0.8rem; opacity: 0.8; }
+        .global-stats { background: rgba(0,0,0,0.4); border-radius: 60px; padding: 8px 20px; font-size: 0.85rem; font-weight: bold; backdrop-filter: blur(2px); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 200px; }
+        .global-stats .stat-row { white-space: nowrap; }
+        .global-stats span.highlight { color: #facc15; font-size: 1rem; margin-right: 4px; font-weight: 700; }
+        .global-stats .small-note { font-size: 0.7rem; opacity: 0.8; font-weight: normal; }
+        .toolbar { display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn { border: none; padding: 8px 18px; border-radius: 40px; font-weight: 500; cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); }
+        .btn-primary { background: #2c7da0; border-color: #2c7da0; }
+        .btn-primary:hover { background: #1f5e7a; transform: translateY(-1px); }
+        .btn-outline { background: transparent; color: #e2e8f0; }
+        .btn-outline:hover { background: rgba(255,255,255,0.25); }
+        .btn-warning { background: rgba(220,38,38,0.7); border-color: #dc2626; }
+        .btn-warning:hover { background: #dc2626; }
+        .tabs-container { background: #f1f5f9; border-bottom: 2px solid #cbd5e1; padding: 0 24px; display: flex; gap: 4px; }
+        .tab-btn { padding: 12px 28px; font-size: 1rem; font-weight: 600; border: none; background: transparent; cursor: pointer; transition: 0.2s; color: #334155; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+        .tab-btn.active { color: #0f172a; border-bottom-color: #2c7da0; background: white; border-radius: 12px 12px 0 0; }
+        .tab-btn:hover:not(.active) { background: #e2e8f0; }
+        .table-wrapper { overflow-x: auto; padding: 0 0 12px 0; width: 100%; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; min-width: 1600px; }
+        .data-table th { background: #f1f5f9; padding: 12px 6px; text-align: center; font-weight: 600; border-bottom: 2px solid #cbd5e1; position: sticky; top: 0; white-space: nowrap; }
+        .data-table td { padding: 10px 6px; text-align: center; border-bottom: 1px solid #e2e8f0; vertical-align: middle; cursor: pointer; transition: background 0.1s; }
+        .data-table td.editable-cell:hover { background-color: #e6f7ff; }
+        .data-table tr:hover { background: #fefce8; }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 40px; font-size: 0.7rem; font-weight: 500; }
+        .status-sold { background: #fee2e2; color: #b91c1c; }
+        .status-unsold { background: #dcfce7; color: #15803d; }
+        .status-waiting { background: #fff3cd; color: #856404; }
+        .credit-ok { background: #d1fae5; color: #065f46; }
+        .credit-bad { background: #ffe4e2; color: #b91c1c; }
+        .credit-normal { background: #e2e8f0; color: #334155; }
+        .row-cover-active { background-color: #e0f2fe !important; }
+        .safeBox-cover-badge { background: #facc15; color: #0f172a; border-radius: 20px; padding: 2px 8px; font-size: 0.7rem; font-weight: bold; margin-left: 6px; white-space: nowrap; }
+        .action-btns { display: flex; gap: 6px; justify-content: center; }
+        .icon-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 4px 8px; border-radius: 30px; transition: 0.1s; }
+        .icon-btn.delete-btn:hover { background: #fee2e2; color: #dc2626; }
+        .footer-stats { background: #0f172a; color: #facc15; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; font-weight: bold; font-size: 1rem; }
+        .total-sales { background: #00000030; padding: 6px 16px; border-radius: 40px; }
+        .inline-editor { width: 100%; min-width: 100px; padding: 6px 8px; border: 2px solid #2c7da0; border-radius: 12px; font-size: 0.8rem; background: white; outline: none; text-align: center; }
+        .inline-editor:focus { border-color: #facc15; }
+        .logic-cell { background-color: #fef9e3; font-weight: 500; }
+        .empty-row td { text-align: center; color: #64748b; padding: 32px; font-style: italic; }
+        .toast-notice { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #facc15; padding: 12px 20px; border-radius: 40px; font-size: 0.85rem; font-weight: 500; box-shadow: 0 8px 20px rgba(0,0,0,0.2); z-index: 1000; animation: fadeInOut 3s ease forwards; pointer-events: none; }
+        @keyframes fadeInOut { 0% { opacity: 0; transform: translateY(20px); } 15% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(20px); } }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .loading-spinner { background: white; padding: 20px 40px; border-radius: 20px; font-weight: bold; color: #0b2b3b; }
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="header">
+        <div class="title">
+            <h1>🎮 哈弗币 · 专业管家</h1>
+            <p>微信 / QQ数据 | 周少爷至尊独享 | ☁️ Supabase云端同步</p>
+        </div>
+        <div class="global-stats" id="globalStatsPanel">
+            <div class="stat-row">📊 双平台总销售额: <span id="globalTotalAmount">0.00</span> 元</div>
+            <div class="stat-row">💰 哈弗币总估值: <span id="globalHbEstimate">0.00</span> 元 <span class="small-note">(38万币=1元)</span></div>
+        </div>
+        <div class="toolbar">
+            <button class="btn btn-primary" id="addNewBtn">➕ 新增账户</button>
+            <button class="btn btn-outline" id="resetCurrentViewBtn">⟳ 重置当前界面数据</button>
+            <button class="btn btn-warning" id="clearAllDataBtn">🗑️ 清空所有云端数据</button>
+        </div>
+    </div>
+
+    <div class="tabs-container">
+        <button class="tab-btn active" data-view="wechat">💬 微信账号</button>
+        <button class="tab-btn" data-view="qq">🐧 QQ账号</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table" id="dataTable">
+            <thead id="tableHeader"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="footer-stats">
+        <span>🔒 当前界面累计出售总额 :</span>
+        <span class="total-sales" id="totalSalesAll">0 元</span>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    // ======================= Supabase 配置（请替换为你的实际值）=======================
+    const SUPABASE_URL = "https://你的项目ID.supabase.co";      // 例如 https://xxxxx.supabase.co
+    const SUPABASE_ANON_KEY = "你的anon公钥";                   // 项目设置 -> API 中的 anon public key
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // 表名定义（需与Supabase中创建的表名一致）
+    const WECHAT_TABLE = "wechat_accounts";
+    const QQ_TABLE = "qq_accounts";
+    
+    // ======================= 业务常量 =======================
+    const NINE_GRID_DAILY_COST_WAN = 2000;   // 每天九格消耗2000万哈弗币
+    const HB_TO_RMB_RATE = 38;               // 38万哈弗币 = 1元
+    
+    let wechatAccounts = [];
+    let qqAccounts = [];
+    let currentView = "wechat";
+    
+    // ======================= 辅助函数 =======================
+    function showToast(msg) {
+        let toast = document.querySelector(".toast-notice");
+        if (toast) toast.remove();
+        toast = document.createElement("div");
+        toast.className = "toast-notice";
+        toast.innerText = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    function showLoading(show) {
+        let overlay = document.querySelector(".loading-overlay");
+        if (show) {
+            if (overlay) overlay.remove();
+            overlay = document.createElement("div");
+            overlay.className = "loading-overlay";
+            overlay.innerHTML = '<div class="loading-spinner">☁️ 同步中...</div>';
+            document.body.appendChild(overlay);
+        } else if (overlay) overlay.remove();
+    }
+    
+    // ======================= 安全箱覆盖逻辑 =======================
+    function isCoverConditionMet(acc) {
+        const gridDays = Number(acc.grid9Days) || 0;
+        const hb = Number(acc.hbCoin) || 0;
+        if (hb <= 0) return false;
+        return (gridDays * NINE_GRID_DAILY_COST_WAN) >= hb;
+    }
+    
+    function syncSafeBoxByCondition(acc, showMsg = true) {
+        if (!acc) return false;
+        const conditionMet = isCoverConditionMet(acc);
+        const current = acc.safeBoxSize;
+        let changed = false;
+        if (conditionMet && current !== 9) {
+            acc.safeBoxSize = 9;
+            if (showMsg) showToast(`✨ “${acc.name}” 九格卡满足覆盖租期，安全箱已自动升级为9格！`);
+            changed = true;
+        } else if (!conditionMet && current === 9) {
+            acc.safeBoxSize = 4;
+            if (showMsg) showToast(`⚠️ “${acc.name}” 不再满足九格覆盖条件，安全箱已降回4格。`);
+            changed = true;
+        }
+        return changed;
+    }
+    
+    // 静默同步所有账号安全箱（加载/保存后调用）
+    function silentSyncAllAccounts() {
+        let any = false;
+        for (let acc of wechatAccounts) if (syncSafeBoxByCondition(acc, false)) any = true;
+        for (let acc of qqAccounts) if (syncSafeBoxByCondition(acc, false)) any = true;
+        if (any) saveToCloud();
+    }
+    
+    // ======================= 数据标准化 =======================
+    function normalizeAccount(acc) {
+        if (acc.gameName === undefined) acc.gameName = "";
+        if (acc.bindAccount === undefined) acc.bindAccount = "未绑定";
+        if (acc.safeBoxSize === undefined) acc.safeBoxSize = 4;
+        if (acc.lastStatusChangeTime === undefined) acc.lastStatusChangeTime = 0;
+        if (acc.totalSaleAmount === undefined) acc.totalSaleAmount = 0;
+        if (acc.currentSaleAmount === undefined) acc.currentSaleAmount = 0;
+        if (acc.contact === undefined) acc.contact = "";
+        if (acc.realName === undefined) acc.realName = "";
+        if (acc.phone === undefined) acc.phone = "";
+        if (!acc.status) acc.status = "未售";
+        if (acc.credit !== "OK" && acc.credit !== "差" && acc.credit !== "良好") acc.credit = "OK";
+        acc.stamina = Math.min(7, Math.max(1, Number(acc.stamina) || 3));
+        acc.endurance = Math.min(7, Math.max(1, Number(acc.endurance) || 3));
+        if (![2,4,6,9].includes(acc.safeBoxSize)) acc.safeBoxSize = 4;
+        acc.hbCoin = Number(acc.hbCoin) || 0;
+        acc.grid9Days = Number(acc.grid9Days) || 0;
+        acc.currentSaleAmount = Number(acc.currentSaleAmount) || 0;
+        acc.totalSaleAmount = Number(acc.totalSaleAmount) || 0;
+        if (acc.status === "未售" && (!acc.lastStatusChangeTime || acc.lastStatusChangeTime === 0)) {
+            acc.lastStatusChangeTime = Date.now();
+        } else if (acc.status !== "未售") {
+            acc.lastStatusChangeTime = 0;
+        }
+    }
+    
+    // ======================= 云端操作 =======================
+    async function loadFromCloud() {
+        showLoading(true);
+        try {
+            const [wechatRes, qqRes] = await Promise.all([
+                supabase.from(WECHAT_TABLE).select("*"),
+                supabase.from(QQ_TABLE).select("*")
+            ]);
+            if (wechatRes.error) throw wechatRes.error;
+            if (qqRes.error) throw qqRes.error;
+            
+            wechatAccounts = wechatRes.data || [];
+            qqAccounts = qqRes.data || [];
+            
+            wechatAccounts.forEach(normalizeAccount);
+            qqAccounts.forEach(normalizeAccount);
+            silentSyncAllAccounts();  // 触发安全箱同步（但不额外弹窗）
+            renderTable();
+            showToast("✅ 数据已从云端同步");
+        } catch (err) {
+            console.error(err);
+            showToast("❌ 加载云端数据失败: " + err.message);
+            wechatAccounts = [];
+            qqAccounts = [];
+            renderTable();
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async function saveToCloud() {
+        showLoading(true);
+        try {
+            // 先删除两张表的所有记录，再批量插入（全量替换策略）
+            const [delWechat, delQQ] = await Promise.all([
+                supabase.from(WECHAT_TABLE).delete().neq("id", 0),
+                supabase.from(QQ_TABLE).delete().neq("id", 0)
+            ]);
+            if (delWechat.error) throw delWechat.error;
+            if (delQQ.error) throw delQQ.error;
+            
+            // 准备插入数据：移除可能存在的 id 字段（避免主键冲突）
+            const wechatData = wechatAccounts.map(({ id, ...rest }) => rest);
+            const qqData = qqAccounts.map(({ id, ...rest }) => rest);
+            
+            const [insWechat, insQQ] = await Promise.all([
+                supabase.from(WECHAT_TABLE).insert(wechatData),
+                supabase.from(QQ_TABLE).insert(qqData)
+            ]);
+            if (insWechat.error) throw insWechat.error;
+            if (insQQ.error) throw insQQ.error;
+            
+            showToast("💾 数据已保存到云端");
+        } catch (err) {
+            console.error(err);
+            showToast("❌ 保存失败: " + err.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async function clearAllCloudData() {
+        if (!confirm("⚠️ 危险操作！将清空所有云端数据（微信+QQ），不可恢复。确定继续？")) return;
+        if (!confirm("再次确认：所有账户数据将被永久删除！")) return;
+        showLoading(true);
+        try {
+            await Promise.all([
+                supabase.from(WECHAT_TABLE).delete().neq("id", 0),
+                supabase.from(QQ_TABLE).delete().neq("id", 0)
+            ]);
+            wechatAccounts = [];
+            qqAccounts = [];
+            renderTable();
+            showToast("🗑️ 所有云端数据已清空");
+        } catch (err) {
+            showToast("清空失败: " + err.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    // ======================= 状态变更 & 字段更新 =======================
+    function handleStatusChange(account, oldStatus, newStatus) {
+        const now = Date.now();
+        if (oldStatus === "售出中" && newStatus === "未售") {
+            // 累计销售额，清空本次售价，重置计时，清零哈弗币
+            account.totalSaleAmount = (account.totalSaleAmount || 0) + (account.currentSaleAmount || 0);
+            account.currentSaleAmount = 0;
+            account.lastStatusChangeTime = now;
+            if (account.hbCoin !== 0) {
+                const oldHb = account.hbCoin;
+                account.hbCoin = 0;
+                showToast(`💸 “${account.name}” 状态变更为「未售」，哈弗币已清零 (原${oldHb}万)`);
+            }
+            syncSafeBoxByCondition(account, true);
+            return;
+        }
+        if (newStatus === "未售" && oldStatus !== "未售") {
+            account.lastStatusChangeTime = now;
+        } else if (oldStatus === "未售" && newStatus !== "未售") {
+            account.lastStatusChangeTime = 0;
+        } else if (oldStatus === "售出中" && newStatus === "待售处") {
+            account.lastStatusChangeTime = 0;
+        } else if (newStatus !== "未售") {
+            account.lastStatusChangeTime = 0;
+        }
+        if (newStatus === "未售" && (!account.lastStatusChangeTime || account.lastStatusChangeTime === 0)) {
+            account.lastStatusChangeTime = now;
+        }
+    }
+    
+    async function updateAccountField(index, fieldKey, newValue) {
+        const accounts = (currentView === "wechat" ? wechatAccounts : qqAccounts);
+        if (index < 0 || index >= accounts.length) return;
+        const account = accounts[index];
+        const oldStatus = account.status;
+        
+        let realField = fieldKey;
+        if (fieldKey === "contactAccount") realField = "contact";
+        else if (fieldKey === "bindAccount") realField = "bindAccount";
+        
+        let needSync = false;
+        switch (realField) {
+            case "name": account.name = (newValue && newValue.trim()) ? newValue.trim() : "无名"; break;
+            case "gameName": account.gameName = (newValue && newValue.trim()) || ""; break;
+            case "contact": account.contact = (newValue !== undefined && newValue !== null) ? String(newValue) : ""; break;
+            case "stamina": account.stamina = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
+            case "endurance": account.endurance = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
+            case "hbCoin": account.hbCoin = parseFloat(newValue) || 0; needSync = true; break;
+            case "grid9Days": account.grid9Days = parseInt(newValue) || 0; needSync = true; break;
+            case "safeBoxSize": {
+                let val = newValue;
+                if (typeof val === "string") val = parseInt(val.replace("格","")) || 4;
+                account.safeBoxSize = [2,4,6,9].includes(Number(val)) ? Number(val) : 4;
+                break;
+            }
+            case "status": account.status = newValue; break;
+            case "credit": account.credit = newValue; break;
+            case "realName": account.realName = (newValue && newValue.trim()) || ""; break;
+            case "bindAccount": account.bindAccount = (newValue && newValue.trim()) ? newValue.trim() : "未绑定"; break;
+            case "phone": account.phone = (newValue && newValue.trim()) || ""; break;
+            case "currentSaleAmount": account.currentSaleAmount = parseFloat(newValue) || 0; break;
+            default: return;
+        }
+        
+        if (realField === "status") {
+            handleStatusChange(account, oldStatus, account.status);
+            needSync = true;
+        }
+        if (needSync) syncSafeBoxByCondition(account, true);
+        
+        await saveToCloud();
+        renderTable();
+    }
+    
+    // ======================= 统计函数 =======================
+    function computeGlobalTotalSales() {
+        let total = 0;
+        wechatAccounts.forEach(acc => total += (acc.totalSaleAmount || 0));
+        qqAccounts.forEach(acc => total += (acc.totalSaleAmount || 0));
+        return total;
+    }
+    
+    function computeTotalHbWan() {
+        let total = 0;
+        wechatAccounts.forEach(acc => total += (acc.hbCoin || 0));
+        qqAccounts.forEach(acc => total += (acc.hbCoin || 0));
+        return total;
+    }
+    
+    function computeGlobalHbValue() {
+        return computeTotalHbWan() / HB_TO_RMB_RATE;
+    }
+    
+    function updateGlobalStats() {
+        document.getElementById("globalTotalAmount").innerText = computeGlobalTotalSales().toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+        document.getElementById("globalHbEstimate").innerText = computeGlobalHbValue().toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    
+    // ======================= 内联编辑 =======================
+    function escapeHtml(str) { return String(str ?? "").replace(/[&<>]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[m])); }
+    function escapeAttr(str) { return String(str ?? "").replace(/[&<>"]/g, m => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[m])); }
+    
+    function startInlineEdit(cell, rowIndex, fieldKey, currentValue, fieldType) {
+        if (cell.querySelector(".inline-editor")) return;
+        const original = cell.innerHTML;
+        let editor;
+        if (fieldType === "select") {
+            let options = [];
+            if (fieldKey === "stamina" || fieldKey === "endurance") for (let i=1;i<=7;i++) options.push(`${i}`);
+            if (fieldKey === "safeBoxSize") options = ["2格","4格","6格","9格"];
+            if (fieldKey === "status") options = ["售出中","未售","待售处"];
+            if (fieldKey === "credit") options = ["OK","差","良好"];
+            editor = document.createElement("select");
+            editor.className = "inline-editor";
+            options.forEach(opt => {
+                const option = document.createElement("option");
+                option.value = opt;
+                option.textContent = opt;
+                let compare = currentValue;
+                if (fieldKey === "safeBoxSize") compare = `${currentValue}格`;
+                if (opt === compare) option.selected = true;
+                editor.appendChild(option);
+            });
+        } else {
+            editor = document.createElement("input");
+            editor.type = "text";
+            editor.className = "inline-editor";
+            if (["hbCoin","grid9Days","currentSaleAmount"].includes(fieldKey)) editor.type = "number";
+            editor.value = currentValue ?? "";
+        }
+        cell.innerHTML = "";
+        cell.appendChild(editor);
+        editor.focus();
+        const save = async () => {
+            let val = fieldType === "select" ? editor.value : editor.value;
+            if (fieldKey === "safeBoxSize") val = parseInt(val.replace("格",""));
+            if (String(val) === String(currentValue) && fieldKey !== "safeBoxSize") {
+                cell.innerHTML = original;
+                return;
+            }
+            await updateAccountField(rowIndex, fieldKey, val);
+        };
+        const cancel = () => { cell.innerHTML = original; };
+        editor.addEventListener("blur", save);
+        editor.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } else if (e.key === "Escape") cancel(); });
+    }
+    
+    // ======================= 渲染表格 =======================
+    function getDaysSinceLastSale(acc) {
+        if (acc.status !== "未售") return 0;
+        if (!acc.lastStatusChangeTime) return 0;
+        return Math.floor((Date.now() - acc.lastStatusChangeTime) / (1000*60*60*24));
+    }
+    
+    function renderTable() {
+        const thead = document.getElementById("tableHeader");
+        const tbody = document.getElementById("tableBody");
+        const accounts = currentView === "wechat" ? wechatAccounts : qqAccounts;
+        const isWechat = currentView === "wechat";
+        
+        const columns = [
+            { key: "index", label: "#" },
+            { key: "name", label: "昵称" },
+            { key: "gameName", label: "🎮游戏名称" },
+            { key: "contactAccount", label: isWechat ? "💬微信号" : "🐧QQ号" },
+            { key: "stamina", label: "💪体" },
+            { key: "endurance", label: "⚡耐" },
+            { key: "hbCoin", label: "💰哈弗币(万)" },
+            { key: "grid9Days", label: "📆9格(天)" },
+            { key: "safeBoxSize", label: "📦安全箱" },
+            { key: "status", label: "🏷️状态" },
+            { key: "credit", label: "⭐信用" },
+            { key: "daysSince", label: "📅距上次出售(天)" },
+            { key: "realName", label: "👤实名认证" },
+            { key: "currentSaleAmount", label: "💰本次售价(元)" },
+            { key: "totalSaleAmount", label: "💎累计出售(元)" },
+            { key: "phone", label: "📞手机号" },
+            { key: "bindAccount", label: isWechat ? "🔒安全中心·QQ绑定" : "🔒安全中心·微信绑定" },
+            { key: "actions", label: "⚙️操作" }
+        ];
+        
+        thead.innerHTML = `<tr>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+        
+        if (accounts.length === 0) {
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="${columns.length}" style="text-align:center; padding:40px;">✨ 暂无账号，点击「新增账户」开始添加 ✨</td></tr>`;
+            document.getElementById("totalSalesAll").innerText = "0.00 元";
+            updateGlobalStats();
+            return;
+        }
+        
+        let grandTotal = 0;
+        let html = "";
+        for (let i = 0; i < accounts.length; i++) {
+            const acc = accounts[i];
+            grandTotal += (acc.totalSaleAmount || 0);
+            const days = getDaysSinceLastSale(acc);
+            const statusClass = acc.status === "售出中" ? "status-sold" : (acc.status === "待售处" ? "status-waiting" : "status-unsold");
+            const creditClass = acc.credit === "OK" ? "credit-ok" : (acc.credit === "差" ? "credit-bad" : "credit-normal");
+            const coverActive = isCoverConditionMet(acc);
+            const rowClass = coverActive ? "row-cover-active" : "";
+            const safeBoxDisplay = `${acc.safeBoxSize}格`;
+            const coverBadge = coverActive ? `<span class="safeBox-cover-badge">✨覆盖租期</span>` : "";
+            
+            html += `<tr class="${rowClass}">`;
+            html += `<td class="static-cell">${i+1}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="name" data-type="text" data-value="${escapeAttr(acc.name)}">${escapeHtml(acc.name)}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="gameName" data-type="text" data-value="${escapeAttr(acc.gameName)}">${escapeHtml(acc.gameName || "—")}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="contactAccount" data-type="text" data-value="${escapeAttr(acc.contact)}">${escapeHtml(acc.contact || "—")}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="stamina" data-type="select" data-value="${acc.stamina}">${acc.stamina}级</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="endurance" data-type="select" data-value="${acc.endurance}">${acc.endurance}级</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="hbCoin" data-type="number" data-value="${acc.hbCoin}">${(acc.hbCoin || 0).toLocaleString()} 万</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="grid9Days" data-type="number" data-value="${acc.grid9Days}">${acc.grid9Days > 0 ? acc.grid9Days+"天" : "—"}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="safeBoxSize" data-type="select" data-value="${acc.safeBoxSize}">${safeBoxDisplay} ${coverBadge}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="status" data-type="select" data-value="${acc.status}"><span class="badge ${statusClass}">${acc.status}</span></td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="credit" data-type="select" data-value="${acc.credit}"><span class="badge ${creditClass}">${acc.credit}</span></td>`;
+            html += `<td class="logic-cell">${days} 天</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="realName" data-type="text" data-value="${escapeAttr(acc.realName)}">${escapeHtml(acc.realName || "—")}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="currentSaleAmount" data-type="number" data-value="${acc.currentSaleAmount}">${(acc.currentSaleAmount || 0).toLocaleString()} 元</td>`;
+            html += `<td class="logic-cell">${(acc.totalSaleAmount || 0).toLocaleString()} 元</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="phone" data-type="text" data-value="${escapeAttr(acc.phone)}">${escapeHtml(acc.phone || "—")}</td>`;
+            html += `<td class="editable-cell" data-row="${i}" data-field="bindAccount" data-type="text" data-value="${escapeAttr(acc.bindAccount)}">${escapeHtml(acc.bindAccount)}</td>`;
+            html += `<td class="action-btns"><button class="icon-btn delete-btn" data-index="${i}" title="删除">🗑️</button></td>`;
+            html += `</tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById("totalSalesAll").innerText = grandTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + " 元";
+        updateGlobalStats();
+        
+        // 绑定编辑事件
+        document.querySelectorAll(".editable-cell").forEach(cell => {
+            cell.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (cell.querySelector(".inline-editor")) return;
+                const row = parseInt(cell.dataset.row);
+                const field = cell.dataset.field;
+                const type = cell.dataset.type;
+                let val = cell.dataset.value;
+                if (val === "—") val = "";
+                startInlineEdit(cell, row, field, val, type);
+            });
+        });
+        
+        // 绑定删除事件
+        document.querySelectorAll(".delete-btn").forEach(btn => {
+            btn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const idx = parseInt(btn.dataset.index);
+                const arr = currentView === "wechat" ? wechatAccounts : qqAccounts;
+                if (idx >= 0 && idx < arr.length && confirm(`确定删除「${arr[idx].name}」吗？`)) {
+                    arr.splice(idx, 1);
+                    await saveToCloud();
+                    renderTable();
+                }
+            });
+        });
+    }
+    
+    // ======================= 业务操作 =======================
+    async function addNewAccount() {
+        let newName = prompt("请输入昵称", "新账号");
+        if (newName === null) return;
+        newName = newName.trim() || "新账号";
+        const newAcc = {
+            name: newName,
+            gameName: "",
+            contact: "",
+            stamina: 3,
+            endurance: 3,
+            hbCoin: 0,
+            grid9Days: 0,
+            safeBoxSize: 4,
+            status: "未售",
+            credit: "OK",
+            realName: "",
+            bindAccount: "未绑定",
+            phone: "",
+            currentSaleAmount: 0,
+            totalSaleAmount: 0,
+            lastStatusChangeTime: Date.now()
+        };
+        normalizeAccount(newAcc);
+        syncSafeBoxByCondition(newAcc, true);
+        const target = currentView === "wechat" ? wechatAccounts : qqAccounts;
+        target.push(newAcc);
+        await saveToCloud();
+        renderTable();
+    }
+    
+    async function resetCurrentView() {
+        if (confirm(`⚠️ 重置将清除当前【${currentView === "wechat" ? "微信" : "QQ"}】界面所有数据。确定清空吗？`)) {
+            if (currentView === "wechat") wechatAccounts = [];
+            else qqAccounts = [];
+            await saveToCloud();
+            renderTable();
+        }
+    }
+    
+    function switchView(view) {
+        currentView = view;
+        document.querySelectorAll(".tab-btn").forEach(btn => {
+            if (btn.dataset.view === view) btn.classList.add("active");
+            else btn.classList.remove("active");
+        });
+        renderTable();
+    }
+    
+    // ======================= 启动应用 =======================
+    document.addEventListener("DOMContentLoaded", () => {
+        loadFromCloud();
+        document.getElementById("addNewBtn").addEventListener("click", addNewAccount);
+        document.getElementById("resetCurrentViewBtn").addEventListener("click", resetCurrentView);
+        document.getElementById("clearAllDataBtn").addEventListener("click", clearAllCloudData);
+        document.querySelectorAll(".tab-btn").forEach(btn => {
+            btn.addEventListener("click", () => switchView(btn.dataset.view));
+        });
+    });
+</script>
+</body>
+</html>
