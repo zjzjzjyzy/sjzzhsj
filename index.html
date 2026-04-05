@@ -96,8 +96,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
     // ======================= 请替换为你的实际值 =======================
-    const SUPABASE_URL = "https://oxtwdbpfneyefzsnyncx.supabase.co";      // 例如 https://xxxxx.supabase.co
-    const SUPABASE_ANON_KEY = "sb_secret_W1mCu-fRkLAq_AWnS4lFyA_mKGNeZYy";                   // 项目设置 -> API 中的 anon public key
+    const SUPABASE_URL = "https://你的项目ID.supabase.co";      // 例如 https://xxxxx.supabase.co
+    const SUPABASE_ANON_KEY = "你的anon公钥";                   // 项目设置 -> API 中的 anon public key
     
     // 创建客户端（禁用 session 持久化，避免跟踪保护阻止 localStorage）
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -116,7 +116,6 @@
     let qqAccounts = [];
     let currentView = "wechat";
     
-    // 辅助函数
     function showToast(msg) {
         let toast = document.querySelector(".toast-notice");
         if (toast) toast.remove();
@@ -442,7 +441,7 @@
             { key: "actions", label: "⚙️操作" }
         ];
         
-        thead.innerHTML = `<tr>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
+        thead.innerHTML = `<table>${columns.map(c => `<th>${c.label}</th>`).join("")}</tr>`;
         
         if (accounts.length === 0) {
             tbody.innerHTML = `<tr class="empty-row"><td colspan="${columns.length}" style="text-align:center; padding:40px;">✨ 暂无账号，点击「新增账户」开始添加 ✨</td></tr>`;
