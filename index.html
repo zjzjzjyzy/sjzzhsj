@@ -356,505 +356,526 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-    // ======================= SUPABASE 配置 =======================
-    // 🔧 请替换成你自己的 Supabase URL 和 anon key
-    const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';     // 👈 修改这里
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM';              // 👈 修改这里
-    
-    let supabase = null;
-    let currentView = 'wechat';
-    let wechatAccounts = [];
-    let qqAccounts = [];
-    let isLoading = false;
-    
-    // 核心规则
-    const NINE_GRID_DAILY_COST_WAN = 2000;
-    const HB_TO_RMB_RATE = 38;
-    
-    function showToast(msg) {
-        const existingToast = document.querySelector('.toast-notice');
-        if (existingToast) existingToast.remove();
-        const toast = document.createElement('div');
-        toast.className = 'toast-notice';
-        toast.innerText = msg;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
-    
-    function showLoading(show) {
-        if (show) {
-            if (document.querySelector('.loading-overlay')) return;
-            const div = document.createElement('div');
-            div.className = 'loading-overlay';
-            div.innerText = '⏳ 同步中...';
-            document.body.appendChild(div);
-        } else {
-            const el = document.querySelector('.loading-overlay');
-            if (el) el.remove();
-        }
-    }
-    
-    // 判断覆盖条件
-    function isCoverConditionMet(account) {
-        const gridDays = Number(account.grid9Days) || 0;
-        const hb = Number(account.hbCoin) || 0;
-        if (hb <= 0) return false;
-        return (gridDays * NINE_GRID_DAILY_COST_WAN) >= hb;
-    }
-    
-    // 智能安全箱同步
-    function syncSafeBoxByCondition(account, showMsg = true) {
-        if (!account) return false;
-        const conditionMet = isCoverConditionMet(account);
-        const currentSize = account.safeBoxSize;
-        let changed = false;
-        if (conditionMet && currentSize !== 9) {
-            account.safeBoxSize = 9;
-            if (showMsg) showToast(`✨ “${account.name}” 九格卡满足覆盖租期，安全箱已自动升级为9格！`);
-            changed = true;
-        } else if (!conditionMet && currentSize === 9) {
-            account.safeBoxSize = 4;
-            if (showMsg) showToast(`⚠️ “${account.name}” 不再满足九格覆盖条件，安全箱已降回4格。`);
-            changed = true;
-        }
-        return changed;
-    }
-    
-    // 状态变更逻辑
-    function handleStatusChange(account, oldStatus, newStatus) {
-        const now = Date.now();
-        if (oldStatus === "售出中" && newStatus === "未售") {
-            const saleVal = account.currentSaleAmount || 0;
-            account.totalSaleAmount = (account.totalSaleAmount || 0) + saleVal;
-            account.currentSaleAmount = 0;
-            account.lastStatusChangeTime = now;
-            if (account.hbCoin !== 0) {
-                const oldHb = account.hbCoin;
-                account.hbCoin = 0;
-                showToast(`💸 “${account.name}” 状态变更为「未售」，哈弗币已清零 (原${oldHb}万)`);
-            }
-            syncSafeBoxByCondition(account, true);
+    // 使用 IIFE 避免变量冲突
+    (function() {
+        // ======================= SUPABASE 配置 =======================
+        // 🔧 请替换成你自己的 Supabase URL 和 anon key
+        const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';     // 👈 修改这里
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM';              // 👈 修改这里
+        
+        // 检查是否已初始化
+        if (window.__hafoAppInitialized) {
+            console.log('应用已初始化，跳过重复加载');
             return;
         }
-        else if (newStatus === "未售" && oldStatus !== "未售") {
-            account.lastStatusChangeTime = now;
-        }
-        else if (oldStatus === "未售" && newStatus !== "未售") {
-            account.lastStatusChangeTime = 0;
-        }
-        else if (oldStatus === "售出中" && newStatus === "待售处") {
-            account.lastStatusChangeTime = 0;
-        }
-        else {
-            if (newStatus !== "未售") account.lastStatusChangeTime = 0;
-        }
-        if (newStatus === "未售" && (!account.lastStatusChangeTime || account.lastStatusChangeTime === 0)) {
-            account.lastStatusChangeTime = now;
-        }
-    }
-    
-    // 数据库转换
-    function accountToDbRow(acc, platform) {
-        return {
-            name: acc.name,
-            game_name: acc.gameName || '',
-            contact: acc.contact || '',
-            stamina: acc.stamina,
-            endurance: acc.endurance,
-            hb_coin: acc.hbCoin,
-            grid9_days: acc.grid9Days,
-            safe_box_size: acc.safeBoxSize,
-            status: acc.status,
-            credit: acc.credit,
-            real_name: acc.realName || '',
-            bind_account: acc.bindAccount || '未绑定',
-            phone: acc.phone || '',
-            current_sale_amount: acc.currentSaleAmount,
-            total_sale_amount: acc.totalSaleAmount,
-            last_status_change_time: acc.lastStatusChangeTime || 0,
-            platform: platform
-        };
-    }
-    
-    function dbRowToAccount(row) {
-        const acc = {
-            name: row.name,
-            gameName: row.game_name || '',
-            contact: row.contact || '',
-            stamina: row.stamina,
-            endurance: row.endurance,
-            hbCoin: row.hb_coin,
-            grid9Days: row.grid9_days,
-            safeBoxSize: row.safe_box_size,
-            status: row.status,
-            credit: row.credit,
-            realName: row.real_name || '',
-            bindAccount: row.bind_account || '未绑定',
-            phone: row.phone || '',
-            currentSaleAmount: row.current_sale_amount,
-            totalSaleAmount: row.total_sale_amount,
-            lastStatusChangeTime: row.last_status_change_time,
-            id: row.id
-        };
-        if (!acc.credit) acc.credit = "OK";
-        if (!acc.status) acc.status = "未售";
-        if (acc.safeBoxSize === undefined) acc.safeBoxSize = 4;
-        acc.stamina = Math.min(7, Math.max(1, Number(acc.stamina) || 3));
-        acc.endurance = Math.min(7, Math.max(1, Number(acc.endurance) || 3));
-        acc.hbCoin = Number(acc.hbCoin) || 0;
-        acc.grid9Days = Number(acc.grid9Days) || 0;
-        acc.currentSaleAmount = Number(acc.currentSaleAmount) || 0;
-        acc.totalSaleAmount = Number(acc.totalSaleAmount) || 0;
-        if (!acc.lastStatusChangeTime && acc.status === "未售") acc.lastStatusChangeTime = Date.now();
-        return acc;
-    }
-    
-    async function loadAllFromSupabase() {
-        if (!supabase) return;
-        showLoading(true);
-        try {
-            const { data, error } = await supabase.from('accounts').select('*');
-            if (error) throw error;
-            const wechat = [];
-            const qq = [];
-            for (let row of data) {
-                const acc = dbRowToAccount(row);
-                if (row.platform === 'wechat') wechat.push(acc);
-                else qq.push(acc);
-            }
-            [...wechat, ...qq].forEach(acc => syncSafeBoxByCondition(acc, false));
-            wechatAccounts = wechat;
-            qqAccounts = qq;
-            renderTable();
-        } catch (err) {
-            console.error(err);
-            showToast("❌ 加载数据失败: " + err.message);
-        } finally {
-            showLoading(false);
-        }
-    }
-    
-    async function upsertAccountToSupabase(account, platform) {
-        if (!supabase) return;
-        const row = accountToDbRow(account, platform);
-        if (account.id) row.id = account.id;
-        const { error } = await supabase.from('accounts').upsert(row, { onConflict: 'id' });
-        if (error) {
-            console.error(error);
-            showToast("保存失败: " + error.message);
-        }
-    }
-    
-    async function deleteAccountFromSupabase(accountId) {
-        if (!supabase || !accountId) return;
-        const { error } = await supabase.from('accounts').delete().eq('id', accountId);
-        if (error) showToast("删除失败: " + error.message);
-    }
-    
-    async function updateAccountField(index, fieldKey, newValue) {
-        const accounts = getCurrentAccounts();
-        if (index < 0 || index >= accounts.length) return false;
-        const account = accounts[index];
-        const oldStatus = account.status;
-        let realField = fieldKey;
-        if (fieldKey === 'contactAccount') realField = 'contact';
-        else if (fieldKey === 'bindAccount') realField = 'bindAccount';
-        let needSyncSafeBox = false;
+        window.__hafoAppInitialized = true;
         
-        switch(realField) {
-            case 'name': account.name = (newValue && newValue.trim()) ? newValue.trim() : "无名"; break;
-            case 'gameName': account.gameName = (newValue && newValue.trim()) || ""; break;
-            case 'contact': account.contact = (newValue !== undefined && newValue !== null) ? String(newValue) : ""; break;
-            case 'stamina': account.stamina = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
-            case 'endurance': account.endurance = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
-            case 'hbCoin': 
-                account.hbCoin = parseFloat(newValue) || 0;
-                needSyncSafeBox = true;
-                break;
-            case 'grid9Days': 
-                account.grid9Days = parseInt(newValue) || 0;
-                needSyncSafeBox = true;
-                break;
-            case 'safeBoxSize': {
-                let val = newValue;
-                if (typeof val === 'string') val = parseInt(val.replace('格','')) || 4;
-                account.safeBoxSize = [2,4,6,9].includes(Number(val)) ? Number(val) : 4;
-                break;
-            }
-            case 'status': account.status = newValue; break;
-            case 'credit': account.credit = newValue; break;
-            case 'realName': account.realName = (newValue && newValue.trim()) || ""; break;
-            case 'bindAccount': account.bindAccount = (newValue && newValue.trim()) ? newValue.trim() : "未绑定"; break;
-            case 'phone': account.phone = (newValue && newValue.trim()) || ""; break;
-            case 'currentSaleAmount': account.currentSaleAmount = parseFloat(newValue) || 0; break;
-            default: return false;
+        let supabaseClient = null;
+        let currentView = 'wechat';
+        let wechatAccounts = [];
+        let qqAccounts = [];
+        
+        // 核心规则
+        const NINE_GRID_DAILY_COST_WAN = 2000;
+        const HB_TO_RMB_RATE = 38;
+        
+        function showToast(msg) {
+            const existingToast = document.querySelector('.toast-notice');
+            if (existingToast) existingToast.remove();
+            const toast = document.createElement('div');
+            toast.className = 'toast-notice';
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
         }
         
-        if (realField === 'status') {
-            handleStatusChange(account, oldStatus, account.status);
-            needSyncSafeBox = true;
-        }
-        if (needSyncSafeBox) {
-            syncSafeBoxByCondition(account, true);
-        }
-        await upsertAccountToSupabase(account, currentView === 'wechat' ? 'wechat' : 'qq');
-        renderTable();
-        return true;
-    }
-    
-    async function addNewAccount() {
-        let newName = prompt("请输入昵称", "新账号");
-        if (newName === null) return;
-        const finalName = (newName && newName.trim()) ? newName.trim() : "新账号";
-        const newAcc = {
-            name: finalName,
-            gameName: "",
-            contact: "",
-            stamina: 3,
-            endurance: 3,
-            hbCoin: 0,
-            grid9Days: 0,
-            safeBoxSize: 4,
-            status: "未售",
-            credit: "OK",
-            realName: "",
-            bindAccount: "未绑定",
-            phone: "",
-            currentSaleAmount: 0,
-            totalSaleAmount: 0,
-            lastStatusChangeTime: Date.now()
-        };
-        syncSafeBoxByCondition(newAcc, false);
-        const accountsArr = getCurrentAccounts();
-        accountsArr.push(newAcc);
-        const platform = currentView === 'wechat' ? 'wechat' : 'qq';
-        const row = accountToDbRow(newAcc, platform);
-        const { data, error } = await supabase.from('accounts').insert(row).select();
-        if (error) {
-            showToast("新增失败: " + error.message);
-            accountsArr.pop();
-            return;
-        }
-        if (data && data[0]) newAcc.id = data[0].id;
-        renderTable();
-    }
-    
-    async function deleteAccount(index) {
-        const accounts = getCurrentAccounts();
-        if (index < 0 || index >= accounts.length) return;
-        const acc = accounts[index];
-        if (!confirm(`确定删除「${acc.name}」吗？`)) return;
-        if (acc.id) await deleteAccountFromSupabase(acc.id);
-        accounts.splice(index, 1);
-        renderTable();
-    }
-    
-    async function resetCurrentView() {
-        if (!confirm(`⚠️ 重置将清除当前【${currentView === 'wechat' ? '微信' : 'QQ'}】界面所有数据，云端也将被清空。确定吗？`)) return;
-        const accounts = getCurrentAccounts();
-        for (let acc of accounts) {
-            if (acc.id) await deleteAccountFromSupabase(acc.id);
-        }
-        if (currentView === 'wechat') wechatAccounts = [];
-        else qqAccounts = [];
-        renderTable();
-    }
-    
-    function getCurrentAccounts() {
-        return currentView === 'wechat' ? wechatAccounts : qqAccounts;
-    }
-    
-    function getDaysSinceLastSale(acc) {
-        if (acc.status !== "未售") return 0;
-        if (!acc.lastStatusChangeTime || acc.lastStatusChangeTime === 0) return 0;
-        const diffMs = Date.now() - acc.lastStatusChangeTime;
-        return Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    }
-    
-    function computeGlobalTotalSales() {
-        let total = 0;
-        wechatAccounts.forEach(acc => { total += (acc.totalSaleAmount || 0); });
-        qqAccounts.forEach(acc => { total += (acc.totalSaleAmount || 0); });
-        return total;
-    }
-    
-    function computeTotalHbWan() {
-        let totalHb = 0;
-        wechatAccounts.forEach(acc => { totalHb += (acc.hbCoin || 0); });
-        qqAccounts.forEach(acc => { totalHb += (acc.hbCoin || 0); });
-        return totalHb;
-    }
-    
-    function computeGlobalHbValue() {
-        return computeTotalHbWan() / HB_TO_RMB_RATE;
-    }
-    
-    function updateGlobalStats() {
-        const globalSales = computeGlobalTotalSales();
-        const globalHbValue = computeGlobalHbValue();
-        document.getElementById('globalTotalAmount').innerText = globalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById('globalHbEstimate').innerText = globalHbValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    
-    function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
-    function escapeAttr(str) { if (!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-    
-    function startInlineEdit(cell, rowIndex, fieldKey, currentValue, fieldType) {
-        if (cell.querySelector('.inline-editor')) return;
-        const originalContent = cell.innerHTML;
-        let editor;
-        if (fieldType === 'select') {
-            let options = [];
-            switch(fieldKey) {
-                case 'stamina': case 'endurance': for(let i=1;i<=7;i++) options.push(`${i}`); break;
-                case 'safeBoxSize': options = ['2格','4格','6格','9格']; break;
-                case 'status': options = ['售出中','未售','待售处']; break;
-                case 'credit': options = ['OK','差','良好']; break;
-                default: options = [];
-            }
-            editor = document.createElement('select');
-            editor.className = 'inline-editor';
-            options.forEach(opt => {
-                const option = document.createElement('option');
-                option.value = opt;
-                option.textContent = opt;
-                let compareVal = currentValue;
-                if (fieldKey === 'safeBoxSize') compareVal = `${currentValue}格`;
-                if (opt === compareVal) option.selected = true;
-                editor.appendChild(option);
-            });
-        } else {
-            editor = document.createElement('input');
-            editor.type = (fieldKey === 'hbCoin' || fieldKey === 'grid9Days' || fieldKey === 'currentSaleAmount') ? 'number' : 'text';
-            editor.className = 'inline-editor';
-            editor.value = currentValue !== undefined && currentValue !== null ? currentValue : '';
-        }
-        cell.innerHTML = '';
-        cell.appendChild(editor);
-        editor.focus();
-        const saveEdit = async () => {
-            let newValue;
-            if (fieldType === 'select') {
-                newValue = editor.value;
-                if (fieldKey === 'safeBoxSize') newValue = parseInt(newValue.replace('格',''));
+        function showLoading(show) {
+            if (show) {
+                if (document.querySelector('.loading-overlay')) return;
+                const div = document.createElement('div');
+                div.className = 'loading-overlay';
+                div.innerText = '⏳ 同步中...';
+                document.body.appendChild(div);
             } else {
-                newValue = editor.value;
+                const el = document.querySelector('.loading-overlay');
+                if (el) el.remove();
             }
-            if (String(newValue) === String(currentValue) && fieldKey !== 'safeBoxSize') {
-                cell.innerHTML = originalContent;
+        }
+        
+        function isCoverConditionMet(account) {
+            const gridDays = Number(account.grid9Days) || 0;
+            const hb = Number(account.hbCoin) || 0;
+            if (hb <= 0) return false;
+            return (gridDays * NINE_GRID_DAILY_COST_WAN) >= hb;
+        }
+        
+        function syncSafeBoxByCondition(account, showMsg = true) {
+            if (!account) return false;
+            const conditionMet = isCoverConditionMet(account);
+            const currentSize = account.safeBoxSize;
+            let changed = false;
+            if (conditionMet && currentSize !== 9) {
+                account.safeBoxSize = 9;
+                if (showMsg) showToast(`✨ "${account.name}" 九格卡满足覆盖租期，安全箱已自动升级为9格！`);
+                changed = true;
+            } else if (!conditionMet && currentSize === 9) {
+                account.safeBoxSize = 4;
+                if (showMsg) showToast(`⚠️ "${account.name}" 不再满足九格覆盖条件，安全箱已降回4格。`);
+                changed = true;
+            }
+            return changed;
+        }
+        
+        function handleStatusChange(account, oldStatus, newStatus) {
+            const now = Date.now();
+            if (oldStatus === "售出中" && newStatus === "未售") {
+                const saleVal = account.currentSaleAmount || 0;
+                account.totalSaleAmount = (account.totalSaleAmount || 0) + saleVal;
+                account.currentSaleAmount = 0;
+                account.lastStatusChangeTime = now;
+                if (account.hbCoin !== 0) {
+                    const oldHb = account.hbCoin;
+                    account.hbCoin = 0;
+                    showToast(`💸 "${account.name}" 状态变更为「未售」，哈弗币已清零 (原${oldHb}万)`);
+                }
+                syncSafeBoxByCondition(account, true);
                 return;
             }
-            await updateAccountField(rowIndex, fieldKey, newValue);
-        };
-        const cancelEdit = () => { cell.innerHTML = originalContent; };
-        editor.addEventListener('blur', saveEdit);
-        editor.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(); } else if (e.key === 'Escape') cancelEdit(); });
-    }
-    
-    function renderTable() {
-        const accounts = getCurrentAccounts();
-        const columns = getColumnsForView();
-        const thead = document.getElementById('tableHeader');
-        const tbody = document.getElementById('tableBody');
-        thead.innerHTML = `<tr>${columns.map(col => `<th>${col.label}</th>`).join('')}</tr>`;
-        if (accounts.length === 0) {
-            tbody.innerHTML = `<tr class="empty-row"><td colspan="${columns.length}" style="text-align:center; padding:40px;">✨ 暂无账号，点击「新增账户」开始添加 ✨</td></tr>`;
-            document.getElementById('totalSalesAll').innerText = '0.00 元';
-            updateGlobalStats();
-            return;
-        }
-        let grandTotal = 0;
-        let html = '';
-        accounts.forEach((acc, idx) => {
-            const daysSince = getDaysSinceLastSale(acc);
-            const statusClass = acc.status === '售出中' ? 'status-sold' : (acc.status === '待售处' ? 'status-waiting' : 'status-unsold');
-            const creditClass = acc.credit === 'OK' ? 'credit-ok' : (acc.credit === '差' ? 'credit-bad' : 'credit-normal');
-            grandTotal += (acc.totalSaleAmount || 0);
-            const isCoverActive = isCoverConditionMet(acc);
-            const rowClass = isCoverActive ? 'row-cover-active' : '';
-            let rowCells = [];
-            for (let col of columns) {
-                if (col.key === 'index') rowCells.push(`<td class="static-cell">${idx+1}</td>`);
-                else if (col.key === 'contactAccount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="contactAccount" data-type="text" data-value="${escapeAttr(acc.contact)}">${escapeHtml(acc.contact || '—')}</td>`);
-                else if (col.key === 'bindAccount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="bindAccount" data-type="text" data-value="${escapeAttr(acc.bindAccount)}">${escapeHtml(acc.bindAccount)}</td>`);
-                else if (col.key === 'stamina') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="stamina" data-type="select" data-value="${acc.stamina}">${acc.stamina}级</td>`);
-                else if (col.key === 'endurance') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="endurance" data-type="select" data-value="${acc.endurance}">${acc.endurance}级</td>`);
-                else if (col.key === 'hbCoin') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="hbCoin" data-type="number" data-value="${acc.hbCoin}">${(acc.hbCoin || 0).toLocaleString()} 万</td>`);
-                else if (col.key === 'grid9Days') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="grid9Days" data-type="number" data-value="${acc.grid9Days}">${acc.grid9Days > 0 ? acc.grid9Days+'天' : '—'}</td>`);
-                else if (col.key === 'safeBoxSize') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="safeBoxSize" data-type="select" data-value="${acc.safeBoxSize}">${acc.safeBoxSize}格 ${isCoverActive ? '<span class="safeBox-cover-badge">✨覆盖租期</span>' : ''}</td>`);
-                else if (col.key === 'status') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="status" data-type="select" data-value="${acc.status}"><span class="badge ${statusClass}">${acc.status}</span></td>`);
-                else if (col.key === 'credit') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="credit" data-type="select" data-value="${acc.credit}"><span class="badge ${creditClass}">${acc.credit}</span></td>`);
-                else if (col.key === 'daysSince') rowCells.push(`<td class="logic-cell">${daysSince} 天</td>`);
-                else if (col.key === 'realName') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="realName" data-type="text" data-value="${escapeAttr(acc.realName)}">${escapeHtml(acc.realName || '—')}</td>`);
-                else if (col.key === 'currentSaleAmount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="currentSaleAmount" data-type="number" data-value="${acc.currentSaleAmount}">${(acc.currentSaleAmount || 0).toLocaleString()} 元</td>`);
-                else if (col.key === 'totalSaleAmount') rowCells.push(`<td class="logic-cell">${(acc.totalSaleAmount || 0).toLocaleString()} 元</td>`);
-                else if (col.key === 'phone') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="phone" data-type="text" data-value="${escapeAttr(acc.phone)}">${escapeHtml(acc.phone || '—')}</td>`);
-                else if (col.key === 'actions') rowCells.push(`<td class="action-btns"><button class="icon-btn delete-btn" data-index="${idx}" title="删除">🗑️</button></td>`);
-                else if (col.key === 'name') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="name" data-type="text" data-value="${escapeAttr(acc.name)}">${escapeHtml(acc.name)}</td>`);
-                else if (col.key === 'gameName') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="gameName" data-type="text" data-value="${escapeAttr(acc.gameName)}">${escapeHtml(acc.gameName || '—')}</td>`);
-                else rowCells.push(`<td>—</td>`);
+            else if (newStatus === "未售" && oldStatus !== "未售") {
+                account.lastStatusChangeTime = now;
             }
-            html += `<tr class="${rowClass}">${rowCells.join('')}</tr>`;
-        });
-        tbody.innerHTML = html;
-        document.getElementById('totalSalesAll').innerText = grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' 元';
-        updateGlobalStats();
-        document.querySelectorAll('.editable-cell').forEach(cell => {
-            cell.addEventListener('click', (e) => {
-                if (cell.querySelector('.inline-editor')) return;
-                const rowIdx = parseInt(cell.getAttribute('data-row'));
-                const fieldKey = cell.getAttribute('data-field');
-                const type = cell.getAttribute('data-type');
-                let rawValue = cell.getAttribute('data-value');
-                if (rawValue === '—') rawValue = '';
-                startInlineEdit(cell, rowIdx, fieldKey, rawValue, type);
+            else if (oldStatus === "未售" && newStatus !== "未售") {
+                account.lastStatusChangeTime = 0;
+            }
+            else if (oldStatus === "售出中" && newStatus === "待售处") {
+                account.lastStatusChangeTime = 0;
+            }
+            else {
+                if (newStatus !== "未售") account.lastStatusChangeTime = 0;
+            }
+            if (newStatus === "未售" && (!account.lastStatusChangeTime || account.lastStatusChangeTime === 0)) {
+                account.lastStatusChangeTime = now;
+            }
+        }
+        
+        function accountToDbRow(acc, platform) {
+            return {
+                name: acc.name,
+                game_name: acc.gameName || '',
+                contact: acc.contact || '',
+                stamina: acc.stamina,
+                endurance: acc.endurance,
+                hb_coin: acc.hbCoin,
+                grid9_days: acc.grid9Days,
+                safe_box_size: acc.safeBoxSize,
+                status: acc.status,
+                credit: acc.credit,
+                real_name: acc.realName || '',
+                bind_account: acc.bindAccount || '未绑定',
+                phone: acc.phone || '',
+                current_sale_amount: acc.currentSaleAmount,
+                total_sale_amount: acc.totalSaleAmount,
+                last_status_change_time: acc.lastStatusChangeTime || 0,
+                platform: platform
+            };
+        }
+        
+        function dbRowToAccount(row) {
+            const acc = {
+                name: row.name,
+                gameName: row.game_name || '',
+                contact: row.contact || '',
+                stamina: row.stamina,
+                endurance: row.endurance,
+                hbCoin: row.hb_coin,
+                grid9Days: row.grid9_days,
+                safeBoxSize: row.safe_box_size,
+                status: row.status,
+                credit: row.credit,
+                realName: row.real_name || '',
+                bindAccount: row.bind_account || '未绑定',
+                phone: row.phone || '',
+                currentSaleAmount: row.current_sale_amount,
+                totalSaleAmount: row.total_sale_amount,
+                lastStatusChangeTime: row.last_status_change_time,
+                id: row.id
+            };
+            if (!acc.credit) acc.credit = "OK";
+            if (!acc.status) acc.status = "未售";
+            if (acc.safeBoxSize === undefined) acc.safeBoxSize = 4;
+            acc.stamina = Math.min(7, Math.max(1, Number(acc.stamina) || 3));
+            acc.endurance = Math.min(7, Math.max(1, Number(acc.endurance) || 3));
+            acc.hbCoin = Number(acc.hbCoin) || 0;
+            acc.grid9Days = Number(acc.grid9Days) || 0;
+            acc.currentSaleAmount = Number(acc.currentSaleAmount) || 0;
+            acc.totalSaleAmount = Number(acc.totalSaleAmount) || 0;
+            if (!acc.lastStatusChangeTime && acc.status === "未售") acc.lastStatusChangeTime = Date.now();
+            return acc;
+        }
+        
+        async function loadAllFromSupabase() {
+            if (!supabaseClient) return;
+            showLoading(true);
+            try {
+                const { data, error } = await supabaseClient.from('accounts').select('*');
+                if (error) throw error;
+                const wechat = [];
+                const qq = [];
+                for (let row of data) {
+                    const acc = dbRowToAccount(row);
+                    if (row.platform === 'wechat') wechat.push(acc);
+                    else qq.push(acc);
+                }
+                [...wechat, ...qq].forEach(acc => syncSafeBoxByCondition(acc, false));
+                wechatAccounts = wechat;
+                qqAccounts = qq;
+                renderTable();
+            } catch (err) {
+                console.error(err);
+                showToast("❌ 加载数据失败: " + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function upsertAccountToSupabase(account, platform) {
+            if (!supabaseClient) return;
+            const row = accountToDbRow(account, platform);
+            if (account.id) row.id = account.id;
+            const { error } = await supabaseClient.from('accounts').upsert(row, { onConflict: 'id' });
+            if (error) {
+                console.error(error);
+                showToast("保存失败: " + error.message);
+            }
+        }
+        
+        async function deleteAccountFromSupabase(accountId) {
+            if (!supabaseClient || !accountId) return;
+            const { error } = await supabaseClient.from('accounts').delete().eq('id', accountId);
+            if (error) showToast("删除失败: " + error.message);
+        }
+        
+        async function updateAccountField(index, fieldKey, newValue) {
+            const accounts = getCurrentAccounts();
+            if (index < 0 || index >= accounts.length) return false;
+            const account = accounts[index];
+            const oldStatus = account.status;
+            let realField = fieldKey;
+            if (fieldKey === 'contactAccount') realField = 'contact';
+            else if (fieldKey === 'bindAccount') realField = 'bindAccount';
+            let needSyncSafeBox = false;
+            
+            switch(realField) {
+                case 'name': account.name = (newValue && newValue.trim()) ? newValue.trim() : "无名"; break;
+                case 'gameName': account.gameName = (newValue && newValue.trim()) || ""; break;
+                case 'contact': account.contact = (newValue !== undefined && newValue !== null) ? String(newValue) : ""; break;
+                case 'stamina': account.stamina = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
+                case 'endurance': account.endurance = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
+                case 'hbCoin': 
+                    account.hbCoin = parseFloat(newValue) || 0;
+                    needSyncSafeBox = true;
+                    break;
+                case 'grid9Days': 
+                    account.grid9Days = parseInt(newValue) || 0;
+                    needSyncSafeBox = true;
+                    break;
+                case 'safeBoxSize': {
+                    let val = newValue;
+                    if (typeof val === 'string') val = parseInt(val.replace('格','')) || 4;
+                    account.safeBoxSize = [2,4,6,9].includes(Number(val)) ? Number(val) : 4;
+                    break;
+                }
+                case 'status': account.status = newValue; break;
+                case 'credit': account.credit = newValue; break;
+                case 'realName': account.realName = (newValue && newValue.trim()) || ""; break;
+                case 'bindAccount': account.bindAccount = (newValue && newValue.trim()) ? newValue.trim() : "未绑定"; break;
+                case 'phone': account.phone = (newValue && newValue.trim()) || ""; break;
+                case 'currentSaleAmount': account.currentSaleAmount = parseFloat(newValue) || 0; break;
+                default: return false;
+            }
+            
+            if (realField === 'status') {
+                handleStatusChange(account, oldStatus, account.status);
+                needSyncSafeBox = true;
+            }
+            if (needSyncSafeBox) {
+                syncSafeBoxByCondition(account, true);
+            }
+            await upsertAccountToSupabase(account, currentView === 'wechat' ? 'wechat' : 'qq');
+            renderTable();
+            return true;
+        }
+        
+        async function addNewAccount() {
+            let newName = prompt("请输入昵称", "新账号");
+            if (newName === null) return;
+            const finalName = (newName && newName.trim()) ? newName.trim() : "新账号";
+            const newAcc = {
+                name: finalName,
+                gameName: "",
+                contact: "",
+                stamina: 3,
+                endurance: 3,
+                hbCoin: 0,
+                grid9Days: 0,
+                safeBoxSize: 4,
+                status: "未售",
+                credit: "OK",
+                realName: "",
+                bindAccount: "未绑定",
+                phone: "",
+                currentSaleAmount: 0,
+                totalSaleAmount: 0,
+                lastStatusChangeTime: Date.now()
+            };
+            syncSafeBoxByCondition(newAcc, false);
+            const accountsArr = getCurrentAccounts();
+            accountsArr.push(newAcc);
+            const platform = currentView === 'wechat' ? 'wechat' : 'qq';
+            const row = accountToDbRow(newAcc, platform);
+            const { data, error } = await supabaseClient.from('accounts').insert(row).select();
+            if (error) {
+                showToast("新增失败: " + error.message);
+                accountsArr.pop();
+                return;
+            }
+            if (data && data[0]) newAcc.id = data[0].id;
+            renderTable();
+        }
+        
+        async function deleteAccount(index) {
+            const accounts = getCurrentAccounts();
+            if (index < 0 || index >= accounts.length) return;
+            const acc = accounts[index];
+            if (!confirm(`确定删除「${acc.name}」吗？`)) return;
+            if (acc.id) await deleteAccountFromSupabase(acc.id);
+            accounts.splice(index, 1);
+            renderTable();
+        }
+        
+        async function resetCurrentView() {
+            if (!confirm(`⚠️ 重置将清除当前【${currentView === 'wechat' ? '微信' : 'QQ'}】界面所有数据，云端也将被清空。确定吗？`)) return;
+            const accounts = getCurrentAccounts();
+            for (let acc of accounts) {
+                if (acc.id) await deleteAccountFromSupabase(acc.id);
+            }
+            if (currentView === 'wechat') wechatAccounts = [];
+            else qqAccounts = [];
+            renderTable();
+        }
+        
+        function getCurrentAccounts() {
+            return currentView === 'wechat' ? wechatAccounts : qqAccounts;
+        }
+        
+        function getDaysSinceLastSale(acc) {
+            if (acc.status !== "未售") return 0;
+            if (!acc.lastStatusChangeTime || acc.lastStatusChangeTime === 0) return 0;
+            const diffMs = Date.now() - acc.lastStatusChangeTime;
+            return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        }
+        
+        function computeGlobalTotalSales() {
+            let total = 0;
+            wechatAccounts.forEach(acc => { total += (acc.totalSaleAmount || 0); });
+            qqAccounts.forEach(acc => { total += (acc.totalSaleAmount || 0); });
+            return total;
+        }
+        
+        function computeTotalHbWan() {
+            let totalHb = 0;
+            wechatAccounts.forEach(acc => { totalHb += (acc.hbCoin || 0); });
+            qqAccounts.forEach(acc => { totalHb += (acc.hbCoin || 0); });
+            return totalHb;
+        }
+        
+        function computeGlobalHbValue() {
+            return computeTotalHbWan() / HB_TO_RMB_RATE;
+        }
+        
+        function updateGlobalStats() {
+            const globalSales = computeGlobalTotalSales();
+            const globalHbValue = computeGlobalHbValue();
+            const salesSpan = document.getElementById('globalTotalAmount');
+            const hbSpan = document.getElementById('globalHbEstimate');
+            if (salesSpan) salesSpan.innerText = globalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            if (hbSpan) hbSpan.innerText = globalHbValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
+        function escapeAttr(str) { if (!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+        
+        function startInlineEdit(cell, rowIndex, fieldKey, currentValue, fieldType) {
+            if (cell.querySelector('.inline-editor')) return;
+            const originalContent = cell.innerHTML;
+            let editor;
+            if (fieldType === 'select') {
+                let options = [];
+                switch(fieldKey) {
+                    case 'stamina': case 'endurance': for(let i=1;i<=7;i++) options.push(`${i}`); break;
+                    case 'safeBoxSize': options = ['2格','4格','6格','9格']; break;
+                    case 'status': options = ['售出中','未售','待售处']; break;
+                    case 'credit': options = ['OK','差','良好']; break;
+                    default: options = [];
+                }
+                editor = document.createElement('select');
+                editor.className = 'inline-editor';
+                options.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    let compareVal = currentValue;
+                    if (fieldKey === 'safeBoxSize') compareVal = `${currentValue}格`;
+                    if (opt === compareVal) option.selected = true;
+                    editor.appendChild(option);
+                });
+            } else {
+                editor = document.createElement('input');
+                editor.type = (fieldKey === 'hbCoin' || fieldKey === 'grid9Days' || fieldKey === 'currentSaleAmount') ? 'number' : 'text';
+                editor.className = 'inline-editor';
+                editor.value = currentValue !== undefined && currentValue !== null ? currentValue : '';
+            }
+            cell.innerHTML = '';
+            cell.appendChild(editor);
+            editor.focus();
+            const saveEdit = async () => {
+                let newValue;
+                if (fieldType === 'select') {
+                    newValue = editor.value;
+                    if (fieldKey === 'safeBoxSize') newValue = parseInt(newValue.replace('格',''));
+                } else {
+                    newValue = editor.value;
+                }
+                if (String(newValue) === String(currentValue) && fieldKey !== 'safeBoxSize') {
+                    cell.innerHTML = originalContent;
+                    return;
+                }
+                await updateAccountField(rowIndex, fieldKey, newValue);
+            };
+            const cancelEdit = () => { cell.innerHTML = originalContent; };
+            editor.addEventListener('blur', saveEdit);
+            editor.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(); } else if (e.key === 'Escape') cancelEdit(); });
+        }
+        
+        function renderTable() {
+            const accounts = getCurrentAccounts();
+            const columns = getColumnsForView();
+            const thead = document.getElementById('tableHeader');
+            const tbody = document.getElementById('tableBody');
+            if (!thead || !tbody) return;
+            
+            thead.innerHTML = `<tr>${columns.map(col => `<th>${col.label}</th>`).join('')}</tr>`;
+            if (accounts.length === 0) {
+                tbody.innerHTML = `<tr class="empty-row"><td colspan="${columns.length}" style="text-align:center; padding:40px;">✨ 暂无账号，点击「新增账户」开始添加 ✨</td></tr>`;
+                const totalEl = document.getElementById('totalSalesAll');
+                if (totalEl) totalEl.innerText = '0.00 元';
+                updateGlobalStats();
+                return;
+            }
+            let grandTotal = 0;
+            let html = '';
+            accounts.forEach((acc, idx) => {
+                const daysSince = getDaysSinceLastSale(acc);
+                const statusClass = acc.status === '售出中' ? 'status-sold' : (acc.status === '待售处' ? 'status-waiting' : 'status-unsold');
+                const creditClass = acc.credit === 'OK' ? 'credit-ok' : (acc.credit === '差' ? 'credit-bad' : 'credit-normal');
+                grandTotal += (acc.totalSaleAmount || 0);
+                const isCoverActive = isCoverConditionMet(acc);
+                const rowClass = isCoverActive ? 'row-cover-active' : '';
+                let rowCells = [];
+                for (let col of columns) {
+                    if (col.key === 'index') rowCells.push(`<td class="static-cell">${idx+1}</td>`);
+                    else if (col.key === 'contactAccount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="contactAccount" data-type="text" data-value="${escapeAttr(acc.contact)}">${escapeHtml(acc.contact || '—')}</td>`);
+                    else if (col.key === 'bindAccount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="bindAccount" data-type="text" data-value="${escapeAttr(acc.bindAccount)}">${escapeHtml(acc.bindAccount)}</td>`);
+                    else if (col.key === 'stamina') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="stamina" data-type="select" data-value="${acc.stamina}">${acc.stamina}级</td>`);
+                    else if (col.key === 'endurance') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="endurance" data-type="select" data-value="${acc.endurance}">${acc.endurance}级</td>`);
+                    else if (col.key === 'hbCoin') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="hbCoin" data-type="number" data-value="${acc.hbCoin}">${(acc.hbCoin || 0).toLocaleString()} 万</td>`);
+                    else if (col.key === 'grid9Days') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="grid9Days" data-type="number" data-value="${acc.grid9Days}">${acc.grid9Days > 0 ? acc.grid9Days+'天' : '—'}</td>`);
+                    else if (col.key === 'safeBoxSize') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="safeBoxSize" data-type="select" data-value="${acc.safeBoxSize}">${acc.safeBoxSize}格 ${isCoverActive ? '<span class="safeBox-cover-badge">✨覆盖租期</span>' : ''}</td>`);
+                    else if (col.key === 'status') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="status" data-type="select" data-value="${acc.status}"><span class="badge ${statusClass}">${acc.status}</span></td>`);
+                    else if (col.key === 'credit') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="credit" data-type="select" data-value="${acc.credit}"><span class="badge ${creditClass}">${acc.credit}</span></td>`);
+                    else if (col.key === 'daysSince') rowCells.push(`<td class="logic-cell">${daysSince} 天</td>`);
+                    else if (col.key === 'realName') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="realName" data-type="text" data-value="${escapeAttr(acc.realName)}">${escapeHtml(acc.realName || '—')}</td>`);
+                    else if (col.key === 'currentSaleAmount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="currentSaleAmount" data-type="number" data-value="${acc.currentSaleAmount}">${(acc.currentSaleAmount || 0).toLocaleString()} 元</td>`);
+                    else if (col.key === 'totalSaleAmount') rowCells.push(`<td class="logic-cell">${(acc.totalSaleAmount || 0).toLocaleString()} 元</td>`);
+                    else if (col.key === 'phone') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="phone" data-type="text" data-value="${escapeAttr(acc.phone)}">${escapeHtml(acc.phone || '—')}</td>`);
+                    else if (col.key === 'actions') rowCells.push(`<td class="action-btns"><button class="icon-btn delete-btn" data-index="${idx}" title="删除">🗑️</button></td>`);
+                    else if (col.key === 'name') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="name" data-type="text" data-value="${escapeAttr(acc.name)}">${escapeHtml(acc.name)}</td>`);
+                    else if (col.key === 'gameName') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="gameName" data-type="text" data-value="${escapeAttr(acc.gameName)}">${escapeHtml(acc.gameName || '—')}</td>`);
+                    else rowCells.push(`<td>—</td>`);
+                }
+                html += `<tr class="${rowClass}">${rowCells.join('')}</tr>`;
             });
-        });
-        document.querySelectorAll('.delete-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const idx = parseInt(btn.getAttribute('data-index'));
-                await deleteAccount(idx);
+            tbody.innerHTML = html;
+            const totalEl = document.getElementById('totalSalesAll');
+            if (totalEl) totalEl.innerText = grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' 元';
+            updateGlobalStats();
+            
+            document.querySelectorAll('.editable-cell').forEach(cell => {
+                cell.addEventListener('click', (e) => {
+                    if (cell.querySelector('.inline-editor')) return;
+                    const rowIdx = parseInt(cell.getAttribute('data-row'));
+                    const fieldKey = cell.getAttribute('data-field');
+                    const type = cell.getAttribute('data-type');
+                    let rawValue = cell.getAttribute('data-value');
+                    if (rawValue === '—') rawValue = '';
+                    startInlineEdit(cell, rowIdx, fieldKey, rawValue, type);
+                });
             });
-        });
-    }
-    
-    function getColumnsForView() {
-        const base = [
-            { key: 'index', label: '#', type: 'static' }, { key: 'name', label: '昵称', type: 'text', field: 'name' },
-            { key: 'gameName', label: '🎮游戏名称', type: 'text', field: 'gameName' },
-            { key: 'contactAccount', label: currentView === 'wechat' ? '💬微信号' : '🐧QQ号', type: 'text', field: 'contactAccount' },
-            { key: 'stamina', label: '💪体', type: 'select', field: 'stamina' }, { key: 'endurance', label: '⚡耐', type: 'select', field: 'endurance' },
-            { key: 'hbCoin', label: '💰哈弗币(万)', type: 'number', field: 'hbCoin' }, { key: 'grid9Days', label: '📆9格(天)', type: 'number', field: 'grid9Days' },
-            { key: 'safeBoxSize', label: '📦安全箱', type: 'select', field: 'safeBoxSize' }, { key: 'status', label: '🏷️状态', type: 'select', field: 'status' },
-            { key: 'credit', label: '⭐信用', type: 'select', field: 'credit' }, { key: 'daysSince', label: '📅距上次出售(天)', type: 'static' },
-            { key: 'realName', label: '👤实名认证', type: 'text', field: 'realName' }, { key: 'currentSaleAmount', label: '💰本次售价(元)', type: 'number', field: 'currentSaleAmount' },
-            { key: 'totalSaleAmount', label: '💎累计出售(元)', type: 'static' }, { key: 'phone', label: '📞手机号', type: 'text', field: 'phone' },
-            { key: 'bindAccount', label: currentView === 'wechat' ? '🔒安全中心·QQ绑定' : '🔒安全中心·微信绑定', type: 'text', field: 'bindAccount' },
-            { key: 'actions', label: '⚙️操作', type: 'static' }
-        ];
-        return base;
-    }
-    
-    function switchView(view) {
-        currentView = view;
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-view') === view));
-        renderTable();
-    }
-    
-    (async function init() {
-        if (!SUPABASE_URL.includes('你的项目')) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            await loadAllFromSupabase();
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(btn.getAttribute('data-index'));
+                    await deleteAccount(idx);
+                });
+            });
+        }
+        
+        function getColumnsForView() {
+            const base = [
+                { key: 'index', label: '#', type: 'static' }, { key: 'name', label: '昵称', type: 'text', field: 'name' },
+                { key: 'gameName', label: '🎮游戏名称', type: 'text', field: 'gameName' },
+                { key: 'contactAccount', label: currentView === 'wechat' ? '💬微信号' : '🐧QQ号', type: 'text', field: 'contactAccount' },
+                { key: 'stamina', label: '💪体', type: 'select', field: 'stamina' }, { key: 'endurance', label: '⚡耐', type: 'select', field: 'endurance' },
+                { key: 'hbCoin', label: '💰哈弗币(万)', type: 'number', field: 'hbCoin' }, { key: 'grid9Days', label: '📆9格(天)', type: 'number', field: 'grid9Days' },
+                { key: 'safeBoxSize', label: '📦安全箱', type: 'select', field: 'safeBoxSize' }, { key: 'status', label: '🏷️状态', type: 'select', field: 'status' },
+                { key: 'credit', label: '⭐信用', type: 'select', field: 'credit' }, { key: 'daysSince', label: '📅距上次出售(天)', type: 'static' },
+                { key: 'realName', label: '👤实名认证', type: 'text', field: 'realName' }, { key: 'currentSaleAmount', label: '💰本次售价(元)', type: 'number', field: 'currentSaleAmount' },
+                { key: 'totalSaleAmount', label: '💎累计出售(元)', type: 'static' }, { key: 'phone', label: '📞手机号', type: 'text', field: 'phone' },
+                { key: 'bindAccount', label: currentView === 'wechat' ? '🔒安全中心·QQ绑定' : '🔒安全中心·微信绑定', type: 'text', field: 'bindAccount' },
+                { key: 'actions', label: '⚙️操作', type: 'static' }
+            ];
+            return base;
+        }
+        
+        function switchView(view) {
+            currentView = view;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                if (btn.getAttribute('data-view') === view) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            renderTable();
+        }
+        
+        // 初始化
+        if (SUPABASE_URL && SUPABASE_URL !== 'https://你的项目.supabase.co') {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            loadAllFromSupabase();
         } else {
+            console.warn('请配置 Supabase URL 和 Anon Key');
             alert("⚠️ 请先在代码中配置你的 Supabase URL 和 Anon Key！\n当前为前端演示模式，无数据存储功能。");
             wechatAccounts = [];
             qqAccounts = [];
             renderTable();
         }
-        document.getElementById('addNewBtn').addEventListener('click', addNewAccount);
-        document.getElementById('resetDefaultBtn').addEventListener('click', resetCurrentView);
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchView(btn.getAttribute('data-view'))));
+        
+        // 绑定事件
+        const addBtn = document.getElementById('addNewBtn');
+        const resetBtn = document.getElementById('resetDefaultBtn');
+        if (addBtn) addBtn.addEventListener('click', addNewAccount);
+        if (resetBtn) resetBtn.addEventListener('click', resetCurrentView);
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchView(btn.getAttribute('data-view')));
+        });
     })();
 </script>
 </body>
