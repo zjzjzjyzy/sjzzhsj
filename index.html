@@ -1,882 +1,626 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>哈弗币专业管家 | 周少爷独家冠名 | 动态版</title>
-    <style>
-        * {
-            box-sizing: border-box;
-            font-family: system-ui, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
-        }
-
-        body {
-            background: #eef2f9;
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-        }
-
-        .dashboard {
-            width: 100%;
-            max-width: 100%;
-            background: white;
-            border-radius: 28px;
-            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.15);
-            overflow-x: auto;
-        }
-
-        .header {
-            padding: 18px 24px;
-            background: linear-gradient(135deg, #0b2b3b, #1e3a4d);
-            color: white;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .title h1 {
-            margin: 0;
-            font-size: 1.7rem;
-            font-weight: 600;
-        }
-
-        .title p {
-            margin: 5px 0 0;
-            font-size: 0.8rem;
-            opacity: 0.8;
-        }
-
-        .global-stats {
-            background: rgba(0,0,0,0.4);
-            border-radius: 60px;
-            padding: 8px 20px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            backdrop-filter: blur(2px);
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            align-items: flex-start;
-            min-width: 200px;
-        }
-        .global-stats .stat-row {
-            white-space: nowrap;
-        }
-        .global-stats span.highlight {
-            color: #facc15;
-            font-size: 1rem;
-            margin-right: 4px;
-            font-weight: 700;
-        }
-        .global-stats .small-note {
-            font-size: 0.7rem;
-            opacity: 0.8;
-            font-weight: normal;
-        }
-
-        .toolbar {
-            display: flex;
-            gap: 12px;
-        }
-
-        .btn {
-            border: none;
-            padding: 8px 18px;
-            border-radius: 40px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: 0.2s;
-            background: rgba(255,255,255,0.15);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-
-        .btn-primary {
-            background: #2c7da0;
-            border-color: #2c7da0;
-        }
-
-        .btn-primary:hover {
-            background: #1f5e7a;
-            transform: translateY(-1px);
-        }
-
-        .btn-outline {
-            background: transparent;
-            color: #e2e8f0;
-        }
-
-        .btn-outline:hover {
-            background: rgba(255,255,255,0.25);
-        }
-
-        .tabs-container {
-            background: #f1f5f9;
-            border-bottom: 2px solid #cbd5e1;
-            padding: 0 24px;
-            display: flex;
-            gap: 4px;
-        }
-        .tab-btn {
-            padding: 12px 28px;
-            font-size: 1rem;
-            font-weight: 600;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            transition: 0.2s;
-            color: #334155;
-            border-bottom: 3px solid transparent;
-            margin-bottom: -2px;
-        }
-        .tab-btn.active {
-            color: #0f172a;
-            border-bottom-color: #2c7da0;
-            background: white;
-            border-radius: 12px 12px 0 0;
-        }
-        .tab-btn:hover:not(.active) {
-            background: #e2e8f0;
-        }
-
-        .table-wrapper {
-            overflow-x: auto;
-            padding: 0 0 12px 0;
-            width: 100%;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.78rem;
-            min-width: 1600px;
-        }
-
-        .data-table th {
-            background: #f1f5f9;
-            padding: 12px 6px;
-            text-align: center;
-            font-weight: 600;
-            border-bottom: 2px solid #cbd5e1;
-            position: sticky;
-            top: 0;
-            white-space: nowrap;
-        }
-
-        .data-table td {
-            padding: 10px 6px;
-            text-align: center;
-            border-bottom: 1px solid #e2e8f0;
-            vertical-align: middle;
-            cursor: pointer;
-            transition: background 0.1s;
-        }
-
-        .data-table td.editable-cell:hover {
-            background-color: #e6f7ff;
-        }
-
-        .data-table tr:hover {
-            background: #fefce8;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 40px;
-            font-size: 0.7rem;
-            font-weight: 500;
-        }
-
-        .status-sold { background: #fee2e2; color: #b91c1c; }
-        .status-unsold { background: #dcfce7; color: #15803d; }
-        .status-waiting { background: #fff3cd; color: #856404; }
-        .credit-ok { background: #d1fae5; color: #065f46; }
-        .credit-bad { background: #ffe4e2; color: #b91c1c; }
-        .credit-normal { background: #e2e8f0; color: #334155; }
-
-        .row-cover-active {
-            background-color: #e0f2fe !important;
-            transition: 0.1s;
-        }
-        .safeBox-cover-badge {
-            background: #facc15;
-            color: #0f172a;
-            border-radius: 20px;
-            padding: 2px 8px;
-            font-size: 0.7rem;
-            font-weight: bold;
-            margin-left: 6px;
-            white-space: nowrap;
-        }
-
-        .action-btns {
-            display: flex;
-            gap: 6px;
-            justify-content: center;
-        }
-
-        .icon-btn {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 30px;
-            transition: 0.1s;
-        }
-
-        .icon-btn.delete-btn:hover {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .footer-stats {
-            background: #0f172a;
-            color: #facc15;
-            padding: 14px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            font-weight: bold;
-            font-size: 1rem;
-        }
-
-        .total-sales {
-            background: #00000030;
-            padding: 6px 16px;
-            border-radius: 40px;
-        }
-
-        .inline-editor {
-            width: 100%;
-            min-width: 100px;
-            padding: 6px 8px;
-            border: 2px solid #2c7da0;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            background: white;
-            outline: none;
-            text-align: center;
-        }
-
-        .inline-editor:focus {
-            border-color: #facc15;
-        }
-        
-        .logic-cell {
-            background-color: #fef9e3;
-            font-weight: 500;
-        }
-
-        .empty-row td {
-            text-align: center;
-            color: #64748b;
-            padding: 32px;
-            font-style: italic;
-        }
-
-        .toast-notice {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: #1e293b;
-            color: #facc15;
-            padding: 12px 20px;
-            border-radius: 40px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            z-index: 1000;
-            animation: fadeInOut 3s ease forwards;
-            pointer-events: none;
-        }
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translateY(20px); }
-            15% { opacity: 1; transform: translateY(0); }
-            85% { opacity: 1; transform: translateY(0); }
-            100% { opacity: 0; transform: translateY(20px); }
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            color: white;
-            font-weight: bold;
-            font-size: 1.2rem;
-            backdrop-filter: blur(4px);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>哈弗币专业管家 · 多租户安全版</title>
+<!-- Supabase JS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;font-family:system-ui,'Segoe UI','Roboto','Helvetica Neue',sans-serif}
+body{background:#eef2f9;margin:0;padding:20px;min-height:100vh;display:flex;align-items:flex-start;justify-content:center}
+.dashboard{width:100%;max-width:100%;background:white;border-radius:28px;box-shadow:0 20px 35px -12px rgba(0,0,0,0.15);overflow-x:auto}
+.header{padding:18px 24px;background:linear-gradient(135deg,#0b2b3b,#1e3a4d);color:white;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px}
+.title h1{margin:0;font-size:1.7rem;font-weight:600}
+.title p{margin:5px 0 0;font-size:0.8rem;opacity:0.8}
+.user-area{display:flex;align-items:center;gap:12px}
+.user-area span{font-size:0.9rem}
+.btn{border:none;padding:8px 18px;border-radius:40px;font-weight:500;cursor:pointer;transition:0.2s;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3)}
+.btn-primary{background:#2c7da0;border-color:#2c7da0}
+.btn-primary:hover{background:#1f5e7a}
+.btn-outline{background:transparent;color:#e2e8f0}
+.btn-outline:hover{background:rgba(255,255,255,0.25)}
+.stats-row{display:flex;gap:20px;background:rgba(0,0,0,0.4);border-radius:60px;padding:8px 20px;font-size:0.85rem;font-weight:bold;backdrop-filter:blur(2px);flex-wrap:wrap}
+.stats-item{white-space:nowrap}
+.highlight{color:#facc15;font-size:1rem;margin-right:4px;font-weight:700}
+.tabs-container{background:#f1f5f9;border-bottom:2px solid #cbd5e1;padding:0 24px;display:flex;gap:4px}
+.tab-btn{padding:12px 28px;font-size:1rem;font-weight:600;border:none;background:transparent;cursor:pointer;transition:0.2s;color:#334155;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tab-btn.active{color:#0f172a;border-bottom-color:#2c7da0;background:white;border-radius:12px 12px 0 0}
+.table-wrapper{overflow-x:auto;padding:0 0 12px 0;width:100%}
+.data-table{width:100%;border-collapse:collapse;font-size:0.78rem;min-width:1600px}
+.data-table th{background:#f1f5f9;padding:12px 6px;text-align:center;font-weight:600;border-bottom:2px solid #cbd5e1;position:sticky;top:0;white-space:nowrap}
+.data-table td{padding:10px 6px;text-align:center;border-bottom:1px solid #e2e8f0;vertical-align:middle;cursor:pointer;transition:background 0.1s}
+.data-table td.editable-cell:hover{background-color:#e6f7ff}
+.data-table tr:hover{background:#fefce8}
+.badge{display:inline-block;padding:4px 10px;border-radius:40px;font-size:0.7rem;font-weight:500}
+.status-sold{background:#fee2e2;color:#b91c1c}
+.status-unsold{background:#dcfce7;color:#15803d}
+.status-waiting{background:#fff3cd;color:#856404}
+.credit-ok{background:#d1fae5;color:#065f46}
+.credit-bad{background:#ffe4e2;color:#b91c1c}
+.credit-normal{background:#e2e8f0;color:#334155}
+.row-cover-active{background-color:#e0f2fe!important}
+.safeBox-cover-badge{background:#facc15;color:#0f172a;border-radius:20px;padding:2px 8px;font-size:0.7rem;font-weight:bold;margin-left:6px;white-space:nowrap}
+.action-btns{display:flex;gap:6px;justify-content:center}
+.icon-btn{background:none;border:none;font-size:1.2rem;cursor:pointer;padding:4px 8px;border-radius:30px;transition:0.1s}
+.icon-btn.delete-btn:hover{background:#fee2e2;color:#dc2626}
+.footer-stats{background:#0f172a;color:#facc15;padding:14px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;font-weight:bold;font-size:1rem}
+.total-sales{background:#00000030;padding:6px 16px;border-radius:40px}
+.inline-editor{width:100%;min-width:100px;padding:6px 8px;border:2px solid #2c7da0;border-radius:12px;font-size:0.8rem;background:white;outline:none;text-align:center}
+.inline-editor:focus{border-color:#facc15}
+.logic-cell{background-color:#fef9e3;font-weight:500}
+.empty-row td{text-align:center;color:#64748b;padding:32px;font-style:italic}
+.toast-notice{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#facc15;padding:12px 20px;border-radius:40px;font-size:0.85rem;font-weight:500;box-shadow:0 8px 20px rgba(0,0,0,0.2);z-index:1000;animation:fadeInOut 3s ease forwards;pointer-events:none}
+@keyframes fadeInOut{0%{opacity:0;transform:translateY(20px)}15%{opacity:1;transform:translateY(0)}85%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(20px)}}
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:2000;color:white;font-weight:bold;font-size:1.2rem;backdrop-filter:blur(4px)}
+.auth-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:3000;backdrop-filter:blur(4px)}
+.auth-box{background:#1e293b;color:white;padding:32px;border-radius:24px;width:90%;max-width:400px;box-shadow:0 20px 40px rgba(0,0,0,0.3)}
+.auth-box h2{margin-top:0;color:#facc15}
+.auth-box input{width:100%;padding:12px;margin:8px 0;border-radius:12px;border:none;font-size:1rem}
+.auth-box .auth-btns{display:flex;gap:12px;justify-content:flex-end;margin-top:16px}
+</style>
 </head>
 <body>
+<div id="app" style="display:none">
 <div class="dashboard">
-    <div class="header">
-        <div class="title">
-            <h1>🎮 哈弗币 · 专业管家 (云同步)</h1>
-            <p>微信 / QQ数据 | 周少爷至尊独享 | Supabase实时存储</p>
-        </div>
-        <div class="global-stats" id="globalStatsPanel">
-            <div class="stat-row">📊 双平台总销售额: <span id="globalTotalAmount">0.00</span> 元</div>
-            <div class="stat-row">💰 哈弗币总估值: <span id="globalHbEstimate">0.00</span> 元 <span class="small-note">(38万币=1元)</span></div>
-        </div>
-        <div class="toolbar">
-            <button class="btn btn-primary" id="addNewBtn">➕ 新增账户 (当前界面)</button>
-            <button class="btn btn-outline" id="resetDefaultBtn">⟳ 清空当前平台数据</button>
-        </div>
+  <div class="header">
+    <div class="title">
+      <h1>🎮 哈弗币 · 专业管家</h1>
+      <p>微信 / QQ 数据 | 多租户安全 | 云同步</p>
     </div>
-
-    <div class="tabs-container">
-        <button class="tab-btn active" data-view="wechat">💬 微信账号</button>
-        <button class="tab-btn" data-view="qq">🐧 QQ账号</button>
+    <div class="user-area">
+      <span id="userGreeting"></span>
+      <button class="btn btn-outline" id="logoutBtn">退出</button>
     </div>
-
-    <div class="table-wrapper">
-        <table class="data-table" id="dataTable">
-            <thead id="tableHeader"></thead>
-            <tbody id="tableBody"></tbody>
-        </table>
+    <div class="stats-row" id="statsPanel">
+      <div class="stats-item">💰 今日收入: <span class="highlight" id="todayIncome">0.00</span> 元</div>
+      <div class="stats-item">📆 本月收入: <span class="highlight" id="monthIncome">0.00</span> 元</div>
+      <div class="stats-item">📊 全部累计: <span class="highlight" id="globalTotalAmount">0.00</span> 元</div>
+      <div class="stats-item">💎 哈弗币估值: <span class="highlight" id="globalHbEstimate">0.00</span> 元 <small>(38万=1元)</small></div>
     </div>
-
-    <div class="footer-stats">
-        <span>🔒 当前界面累计出售总额 :</span>
-        <span class="total-sales" id="totalSalesAll">0 元</span>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="addNewBtn">➕ 新增账户</button>
+      <button class="btn btn-outline" id="resetDefaultBtn">⟳ 清空当前平台</button>
     </div>
+  </div>
+  <div class="tabs-container">
+    <button class="tab-btn active" data-view="wechat">💬 微信账号</button>
+    <button class="tab-btn" data-view="qq">🐧 QQ账号</button>
+  </div>
+  <div class="table-wrapper">
+    <table class="data-table" id="dataTable">
+      <thead id="tableHeader"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+  <div class="footer-stats">
+    <span>🔒 当前界面累计出售总额 :</span>
+    <span class="total-sales" id="totalSalesAll">0 元</span>
+  </div>
+</div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- 登录/注册模态框 -->
+<div id="authModal" class="auth-modal" style="display:none">
+  <div class="auth-box">
+    <h2 id="authTitle">🔐 登录</h2>
+    <input type="email" id="authEmail" placeholder="邮箱" autocomplete="email">
+    <input type="password" id="authPassword" placeholder="密码" autocomplete="current-password">
+    <div class="auth-btns">
+      <button class="btn btn-outline" id="switchAuthMode" style="color:#facc15">没有账号？去注册</button>
+      <button class="btn btn-primary" id="submitAuth">登录</button>
+    </div>
+  </div>
+</div>
+
 <script>
-    // 使用 IIFE 避免变量冲突
-    (function() {
-        // ======================= SUPABASE 配置 =======================
-        // 🔧 请替换成你自己的 Supabase URL 和 anon key
-        const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';     // 👈 修改这里
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM';              // 👈 修改这里
-        
-        // 检查是否已初始化
-        if (window.__hafoAppInitialized) {
-            console.log('应用已初始化，跳过重复加载');
-            return;
-        }
-        window.__hafoAppInitialized = true;
-        
-        let supabaseClient = null;
-        let currentView = 'wechat';
-        let wechatAccounts = [];
-        let qqAccounts = [];
-        
-        // 核心规则
-        const NINE_GRID_DAILY_COST_WAN = 2000;
-        const HB_TO_RMB_RATE = 38;
-        
-        function showToast(msg) {
-            const existingToast = document.querySelector('.toast-notice');
-            if (existingToast) existingToast.remove();
-            const toast = document.createElement('div');
-            toast.className = 'toast-notice';
-            toast.innerText = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-        }
-        
-        function showLoading(show) {
-            if (show) {
-                if (document.querySelector('.loading-overlay')) return;
-                const div = document.createElement('div');
-                div.className = 'loading-overlay';
-                div.innerText = '⏳ 同步中...';
-                document.body.appendChild(div);
-            } else {
-                const el = document.querySelector('.loading-overlay');
-                if (el) el.remove();
-            }
-        }
-        
-        function isCoverConditionMet(account) {
-            const gridDays = Number(account.grid9Days) || 0;
-            const hb = Number(account.hbCoin) || 0;
-            if (hb <= 0) return false;
-            return (gridDays * NINE_GRID_DAILY_COST_WAN) >= hb;
-        }
-        
-        function syncSafeBoxByCondition(account, showMsg = true) {
-            if (!account) return false;
-            const conditionMet = isCoverConditionMet(account);
-            const currentSize = account.safeBoxSize;
-            let changed = false;
-            if (conditionMet && currentSize !== 9) {
-                account.safeBoxSize = 9;
-                if (showMsg) showToast(`✨ "${account.name}" 九格卡满足覆盖租期，安全箱已自动升级为9格！`);
-                changed = true;
-            } else if (!conditionMet && currentSize === 9) {
-                account.safeBoxSize = 4;
-                if (showMsg) showToast(`⚠️ "${account.name}" 不再满足九格覆盖条件，安全箱已降回4格。`);
-                changed = true;
-            }
-            return changed;
-        }
-        
-        function handleStatusChange(account, oldStatus, newStatus) {
-            const now = Date.now();
-            if (oldStatus === "售出中" && newStatus === "未售") {
-                const saleVal = account.currentSaleAmount || 0;
-                account.totalSaleAmount = (account.totalSaleAmount || 0) + saleVal;
-                account.currentSaleAmount = 0;
-                account.lastStatusChangeTime = now;
-                if (account.hbCoin !== 0) {
-                    const oldHb = account.hbCoin;
-                    account.hbCoin = 0;
-                    showToast(`💸 "${account.name}" 状态变更为「未售」，哈弗币已清零 (原${oldHb}万)`);
-                }
-                syncSafeBoxByCondition(account, true);
-                return;
-            }
-            else if (newStatus === "未售" && oldStatus !== "未售") {
-                account.lastStatusChangeTime = now;
-            }
-            else if (oldStatus === "未售" && newStatus !== "未售") {
-                account.lastStatusChangeTime = 0;
-            }
-            else if (oldStatus === "售出中" && newStatus === "待售处") {
-                account.lastStatusChangeTime = 0;
-            }
-            else {
-                if (newStatus !== "未售") account.lastStatusChangeTime = 0;
-            }
-            if (newStatus === "未售" && (!account.lastStatusChangeTime || account.lastStatusChangeTime === 0)) {
-                account.lastStatusChangeTime = now;
-            }
-        }
-        
-        function accountToDbRow(acc, platform) {
-            return {
-                name: acc.name,
-                game_name: acc.gameName || '',
-                contact: acc.contact || '',
-                stamina: acc.stamina,
-                endurance: acc.endurance,
-                hb_coin: acc.hbCoin,
-                grid9_days: acc.grid9Days,
-                safe_box_size: acc.safeBoxSize,
-                status: acc.status,
-                credit: acc.credit,
-                real_name: acc.realName || '',
-                bind_account: acc.bindAccount || '未绑定',
-                phone: acc.phone || '',
-                current_sale_amount: acc.currentSaleAmount,
-                total_sale_amount: acc.totalSaleAmount,
-                last_status_change_time: acc.lastStatusChangeTime || 0,
-                platform: platform
-            };
-        }
-        
-        function dbRowToAccount(row) {
-            const acc = {
-                name: row.name,
-                gameName: row.game_name || '',
-                contact: row.contact || '',
-                stamina: row.stamina,
-                endurance: row.endurance,
-                hbCoin: row.hb_coin,
-                grid9Days: row.grid9_days,
-                safeBoxSize: row.safe_box_size,
-                status: row.status,
-                credit: row.credit,
-                realName: row.real_name || '',
-                bindAccount: row.bind_account || '未绑定',
-                phone: row.phone || '',
-                currentSaleAmount: row.current_sale_amount,
-                totalSaleAmount: row.total_sale_amount,
-                lastStatusChangeTime: row.last_status_change_time,
-                id: row.id
-            };
-            if (!acc.credit) acc.credit = "OK";
-            if (!acc.status) acc.status = "未售";
-            if (acc.safeBoxSize === undefined) acc.safeBoxSize = 4;
-            acc.stamina = Math.min(7, Math.max(1, Number(acc.stamina) || 3));
-            acc.endurance = Math.min(7, Math.max(1, Number(acc.endurance) || 3));
-            acc.hbCoin = Number(acc.hbCoin) || 0;
-            acc.grid9Days = Number(acc.grid9Days) || 0;
-            acc.currentSaleAmount = Number(acc.currentSaleAmount) || 0;
-            acc.totalSaleAmount = Number(acc.totalSaleAmount) || 0;
-            if (!acc.lastStatusChangeTime && acc.status === "未售") acc.lastStatusChangeTime = Date.now();
-            return acc;
-        }
-        
-        async function loadAllFromSupabase() {
-            if (!supabaseClient) return;
-            showLoading(true);
-            try {
-                const { data, error } = await supabaseClient.from('accounts').select('*');
-                if (error) throw error;
-                const wechat = [];
-                const qq = [];
-                for (let row of data) {
-                    const acc = dbRowToAccount(row);
-                    if (row.platform === 'wechat') wechat.push(acc);
-                    else qq.push(acc);
-                }
-                [...wechat, ...qq].forEach(acc => syncSafeBoxByCondition(acc, false));
-                wechatAccounts = wechat;
-                qqAccounts = qq;
-                renderTable();
-            } catch (err) {
-                console.error(err);
-                showToast("❌ 加载数据失败: " + err.message);
-            } finally {
-                showLoading(false);
-            }
-        }
-        
-        async function upsertAccountToSupabase(account, platform) {
-            if (!supabaseClient) return;
-            const row = accountToDbRow(account, platform);
-            if (account.id) row.id = account.id;
-            const { error } = await supabaseClient.from('accounts').upsert(row, { onConflict: 'id' });
-            if (error) {
-                console.error(error);
-                showToast("保存失败: " + error.message);
-            }
-        }
-        
-        async function deleteAccountFromSupabase(accountId) {
-            if (!supabaseClient || !accountId) return;
-            const { error } = await supabaseClient.from('accounts').delete().eq('id', accountId);
-            if (error) showToast("删除失败: " + error.message);
-        }
-        
-        async function updateAccountField(index, fieldKey, newValue) {
-            const accounts = getCurrentAccounts();
-            if (index < 0 || index >= accounts.length) return false;
-            const account = accounts[index];
-            const oldStatus = account.status;
-            let realField = fieldKey;
-            if (fieldKey === 'contactAccount') realField = 'contact';
-            else if (fieldKey === 'bindAccount') realField = 'bindAccount';
-            let needSyncSafeBox = false;
-            
-            switch(realField) {
-                case 'name': account.name = (newValue && newValue.trim()) ? newValue.trim() : "无名"; break;
-                case 'gameName': account.gameName = (newValue && newValue.trim()) || ""; break;
-                case 'contact': account.contact = (newValue !== undefined && newValue !== null) ? String(newValue) : ""; break;
-                case 'stamina': account.stamina = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
-                case 'endurance': account.endurance = Math.min(7, Math.max(1, parseInt(newValue) || 3)); break;
-                case 'hbCoin': 
-                    account.hbCoin = parseFloat(newValue) || 0;
-                    needSyncSafeBox = true;
-                    break;
-                case 'grid9Days': 
-                    account.grid9Days = parseInt(newValue) || 0;
-                    needSyncSafeBox = true;
-                    break;
-                case 'safeBoxSize': {
-                    let val = newValue;
-                    if (typeof val === 'string') val = parseInt(val.replace('格','')) || 4;
-                    account.safeBoxSize = [2,4,6,9].includes(Number(val)) ? Number(val) : 4;
-                    break;
-                }
-                case 'status': account.status = newValue; break;
-                case 'credit': account.credit = newValue; break;
-                case 'realName': account.realName = (newValue && newValue.trim()) || ""; break;
-                case 'bindAccount': account.bindAccount = (newValue && newValue.trim()) ? newValue.trim() : "未绑定"; break;
-                case 'phone': account.phone = (newValue && newValue.trim()) || ""; break;
-                case 'currentSaleAmount': account.currentSaleAmount = parseFloat(newValue) || 0; break;
-                default: return false;
-            }
-            
-            if (realField === 'status') {
-                handleStatusChange(account, oldStatus, account.status);
-                needSyncSafeBox = true;
-            }
-            if (needSyncSafeBox) {
-                syncSafeBoxByCondition(account, true);
-            }
-            await upsertAccountToSupabase(account, currentView === 'wechat' ? 'wechat' : 'qq');
-            renderTable();
-            return true;
-        }
-        
-        async function addNewAccount() {
-            let newName = prompt("请输入昵称", "新账号");
-            if (newName === null) return;
-            const finalName = (newName && newName.trim()) ? newName.trim() : "新账号";
-            const newAcc = {
-                name: finalName,
-                gameName: "",
-                contact: "",
-                stamina: 3,
-                endurance: 3,
-                hbCoin: 0,
-                grid9Days: 0,
-                safeBoxSize: 4,
-                status: "未售",
-                credit: "OK",
-                realName: "",
-                bindAccount: "未绑定",
-                phone: "",
-                currentSaleAmount: 0,
-                totalSaleAmount: 0,
-                lastStatusChangeTime: Date.now()
-            };
-            syncSafeBoxByCondition(newAcc, false);
-            const accountsArr = getCurrentAccounts();
-            accountsArr.push(newAcc);
-            const platform = currentView === 'wechat' ? 'wechat' : 'qq';
-            const row = accountToDbRow(newAcc, platform);
-            const { data, error } = await supabaseClient.from('accounts').insert(row).select();
-            if (error) {
-                showToast("新增失败: " + error.message);
-                accountsArr.pop();
-                return;
-            }
-            if (data && data[0]) newAcc.id = data[0].id;
-            renderTable();
-        }
-        
-        async function deleteAccount(index) {
-            const accounts = getCurrentAccounts();
-            if (index < 0 || index >= accounts.length) return;
-            const acc = accounts[index];
-            if (!confirm(`确定删除「${acc.name}」吗？`)) return;
-            if (acc.id) await deleteAccountFromSupabase(acc.id);
-            accounts.splice(index, 1);
-            renderTable();
-        }
-        
-        async function resetCurrentView() {
-            if (!confirm(`⚠️ 重置将清除当前【${currentView === 'wechat' ? '微信' : 'QQ'}】界面所有数据，云端也将被清空。确定吗？`)) return;
-            const accounts = getCurrentAccounts();
-            for (let acc of accounts) {
-                if (acc.id) await deleteAccountFromSupabase(acc.id);
-            }
-            if (currentView === 'wechat') wechatAccounts = [];
-            else qqAccounts = [];
-            renderTable();
-        }
-        
-        function getCurrentAccounts() {
-            return currentView === 'wechat' ? wechatAccounts : qqAccounts;
-        }
-        
-        function getDaysSinceLastSale(acc) {
-            if (acc.status !== "未售") return 0;
-            if (!acc.lastStatusChangeTime || acc.lastStatusChangeTime === 0) return 0;
-            const diffMs = Date.now() - acc.lastStatusChangeTime;
-            return Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        }
-        
-        function computeGlobalTotalSales() {
-            let total = 0;
-            wechatAccounts.forEach(acc => { total += (acc.totalSaleAmount || 0); });
-            qqAccounts.forEach(acc => { total += (acc.totalSaleAmount || 0); });
-            return total;
-        }
-        
-        function computeTotalHbWan() {
-            let totalHb = 0;
-            wechatAccounts.forEach(acc => { totalHb += (acc.hbCoin || 0); });
-            qqAccounts.forEach(acc => { totalHb += (acc.hbCoin || 0); });
-            return totalHb;
-        }
-        
-        function computeGlobalHbValue() {
-            return computeTotalHbWan() / HB_TO_RMB_RATE;
-        }
-        
-        function updateGlobalStats() {
-            const globalSales = computeGlobalTotalSales();
-            const globalHbValue = computeGlobalHbValue();
-            const salesSpan = document.getElementById('globalTotalAmount');
-            const hbSpan = document.getElementById('globalHbEstimate');
-            if (salesSpan) salesSpan.innerText = globalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            if (hbSpan) hbSpan.innerText = globalHbValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-        
-        function escapeHtml(str) { if (!str) return ''; return String(str).replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
-        function escapeAttr(str) { if (!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-        
-        function startInlineEdit(cell, rowIndex, fieldKey, currentValue, fieldType) {
-            if (cell.querySelector('.inline-editor')) return;
-            const originalContent = cell.innerHTML;
-            let editor;
-            if (fieldType === 'select') {
-                let options = [];
-                switch(fieldKey) {
-                    case 'stamina': case 'endurance': for(let i=1;i<=7;i++) options.push(`${i}`); break;
-                    case 'safeBoxSize': options = ['2格','4格','6格','9格']; break;
-                    case 'status': options = ['售出中','未售','待售处']; break;
-                    case 'credit': options = ['OK','差','良好']; break;
-                    default: options = [];
-                }
-                editor = document.createElement('select');
-                editor.className = 'inline-editor';
-                options.forEach(opt => {
-                    const option = document.createElement('option');
-                    option.value = opt;
-                    option.textContent = opt;
-                    let compareVal = currentValue;
-                    if (fieldKey === 'safeBoxSize') compareVal = `${currentValue}格`;
-                    if (opt === compareVal) option.selected = true;
-                    editor.appendChild(option);
-                });
-            } else {
-                editor = document.createElement('input');
-                editor.type = (fieldKey === 'hbCoin' || fieldKey === 'grid9Days' || fieldKey === 'currentSaleAmount') ? 'number' : 'text';
-                editor.className = 'inline-editor';
-                editor.value = currentValue !== undefined && currentValue !== null ? currentValue : '';
-            }
-            cell.innerHTML = '';
-            cell.appendChild(editor);
-            editor.focus();
-            const saveEdit = async () => {
-                let newValue;
-                if (fieldType === 'select') {
-                    newValue = editor.value;
-                    if (fieldKey === 'safeBoxSize') newValue = parseInt(newValue.replace('格',''));
-                } else {
-                    newValue = editor.value;
-                }
-                if (String(newValue) === String(currentValue) && fieldKey !== 'safeBoxSize') {
-                    cell.innerHTML = originalContent;
-                    return;
-                }
-                await updateAccountField(rowIndex, fieldKey, newValue);
-            };
-            const cancelEdit = () => { cell.innerHTML = originalContent; };
-            editor.addEventListener('blur', saveEdit);
-            editor.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(); } else if (e.key === 'Escape') cancelEdit(); });
-        }
-        
-        function renderTable() {
-            const accounts = getCurrentAccounts();
-            const columns = getColumnsForView();
-            const thead = document.getElementById('tableHeader');
-            const tbody = document.getElementById('tableBody');
-            if (!thead || !tbody) return;
-            
-            thead.innerHTML = `<tr>${columns.map(col => `<th>${col.label}</th>`).join('')}</tr>`;
-            if (accounts.length === 0) {
-                tbody.innerHTML = `<tr class="empty-row"><td colspan="${columns.length}" style="text-align:center; padding:40px;">✨ 暂无账号，点击「新增账户」开始添加 ✨</td></tr>`;
-                const totalEl = document.getElementById('totalSalesAll');
-                if (totalEl) totalEl.innerText = '0.00 元';
-                updateGlobalStats();
-                return;
-            }
-            let grandTotal = 0;
-            let html = '';
-            accounts.forEach((acc, idx) => {
-                const daysSince = getDaysSinceLastSale(acc);
-                const statusClass = acc.status === '售出中' ? 'status-sold' : (acc.status === '待售处' ? 'status-waiting' : 'status-unsold');
-                const creditClass = acc.credit === 'OK' ? 'credit-ok' : (acc.credit === '差' ? 'credit-bad' : 'credit-normal');
-                grandTotal += (acc.totalSaleAmount || 0);
-                const isCoverActive = isCoverConditionMet(acc);
-                const rowClass = isCoverActive ? 'row-cover-active' : '';
-                let rowCells = [];
-                for (let col of columns) {
-                    if (col.key === 'index') rowCells.push(`<td class="static-cell">${idx+1}</td>`);
-                    else if (col.key === 'contactAccount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="contactAccount" data-type="text" data-value="${escapeAttr(acc.contact)}">${escapeHtml(acc.contact || '—')}</td>`);
-                    else if (col.key === 'bindAccount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="bindAccount" data-type="text" data-value="${escapeAttr(acc.bindAccount)}">${escapeHtml(acc.bindAccount)}</td>`);
-                    else if (col.key === 'stamina') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="stamina" data-type="select" data-value="${acc.stamina}">${acc.stamina}级</td>`);
-                    else if (col.key === 'endurance') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="endurance" data-type="select" data-value="${acc.endurance}">${acc.endurance}级</td>`);
-                    else if (col.key === 'hbCoin') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="hbCoin" data-type="number" data-value="${acc.hbCoin}">${(acc.hbCoin || 0).toLocaleString()} 万</td>`);
-                    else if (col.key === 'grid9Days') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="grid9Days" data-type="number" data-value="${acc.grid9Days}">${acc.grid9Days > 0 ? acc.grid9Days+'天' : '—'}</td>`);
-                    else if (col.key === 'safeBoxSize') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="safeBoxSize" data-type="select" data-value="${acc.safeBoxSize}">${acc.safeBoxSize}格 ${isCoverActive ? '<span class="safeBox-cover-badge">✨覆盖租期</span>' : ''}</td>`);
-                    else if (col.key === 'status') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="status" data-type="select" data-value="${acc.status}"><span class="badge ${statusClass}">${acc.status}</span></td>`);
-                    else if (col.key === 'credit') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="credit" data-type="select" data-value="${acc.credit}"><span class="badge ${creditClass}">${acc.credit}</span></td>`);
-                    else if (col.key === 'daysSince') rowCells.push(`<td class="logic-cell">${daysSince} 天</td>`);
-                    else if (col.key === 'realName') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="realName" data-type="text" data-value="${escapeAttr(acc.realName)}">${escapeHtml(acc.realName || '—')}</td>`);
-                    else if (col.key === 'currentSaleAmount') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="currentSaleAmount" data-type="number" data-value="${acc.currentSaleAmount}">${(acc.currentSaleAmount || 0).toLocaleString()} 元</td>`);
-                    else if (col.key === 'totalSaleAmount') rowCells.push(`<td class="logic-cell">${(acc.totalSaleAmount || 0).toLocaleString()} 元</td>`);
-                    else if (col.key === 'phone') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="phone" data-type="text" data-value="${escapeAttr(acc.phone)}">${escapeHtml(acc.phone || '—')}</td>`);
-                    else if (col.key === 'actions') rowCells.push(`<td class="action-btns"><button class="icon-btn delete-btn" data-index="${idx}" title="删除">🗑️</button></td>`);
-                    else if (col.key === 'name') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="name" data-type="text" data-value="${escapeAttr(acc.name)}">${escapeHtml(acc.name)}</td>`);
-                    else if (col.key === 'gameName') rowCells.push(`<td class="editable-cell" data-row="${idx}" data-field="gameName" data-type="text" data-value="${escapeAttr(acc.gameName)}">${escapeHtml(acc.gameName || '—')}</td>`);
-                    else rowCells.push(`<td>—</td>`);
-                }
-                html += `<tr class="${rowClass}">${rowCells.join('')}</tr>`;
-            });
-            tbody.innerHTML = html;
-            const totalEl = document.getElementById('totalSalesAll');
-            if (totalEl) totalEl.innerText = grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' 元';
-            updateGlobalStats();
-            
-            document.querySelectorAll('.editable-cell').forEach(cell => {
-                cell.addEventListener('click', (e) => {
-                    if (cell.querySelector('.inline-editor')) return;
-                    const rowIdx = parseInt(cell.getAttribute('data-row'));
-                    const fieldKey = cell.getAttribute('data-field');
-                    const type = cell.getAttribute('data-type');
-                    let rawValue = cell.getAttribute('data-value');
-                    if (rawValue === '—') rawValue = '';
-                    startInlineEdit(cell, rowIdx, fieldKey, rawValue, type);
-                });
-            });
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const idx = parseInt(btn.getAttribute('data-index'));
-                    await deleteAccount(idx);
-                });
-            });
-        }
-        
-        function getColumnsForView() {
-            const base = [
-                { key: 'index', label: '#', type: 'static' }, { key: 'name', label: '昵称', type: 'text', field: 'name' },
-                { key: 'gameName', label: '🎮游戏名称', type: 'text', field: 'gameName' },
-                { key: 'contactAccount', label: currentView === 'wechat' ? '💬微信号' : '🐧QQ号', type: 'text', field: 'contactAccount' },
-                { key: 'stamina', label: '💪体', type: 'select', field: 'stamina' }, { key: 'endurance', label: '⚡耐', type: 'select', field: 'endurance' },
-                { key: 'hbCoin', label: '💰哈弗币(万)', type: 'number', field: 'hbCoin' }, { key: 'grid9Days', label: '📆9格(天)', type: 'number', field: 'grid9Days' },
-                { key: 'safeBoxSize', label: '📦安全箱', type: 'select', field: 'safeBoxSize' }, { key: 'status', label: '🏷️状态', type: 'select', field: 'status' },
-                { key: 'credit', label: '⭐信用', type: 'select', field: 'credit' }, { key: 'daysSince', label: '📅距上次出售(天)', type: 'static' },
-                { key: 'realName', label: '👤实名认证', type: 'text', field: 'realName' }, { key: 'currentSaleAmount', label: '💰本次售价(元)', type: 'number', field: 'currentSaleAmount' },
-                { key: 'totalSaleAmount', label: '💎累计出售(元)', type: 'static' }, { key: 'phone', label: '📞手机号', type: 'text', field: 'phone' },
-                { key: 'bindAccount', label: currentView === 'wechat' ? '🔒安全中心·QQ绑定' : '🔒安全中心·微信绑定', type: 'text', field: 'bindAccount' },
-                { key: 'actions', label: '⚙️操作', type: 'static' }
-            ];
-            return base;
-        }
-        
-        function switchView(view) {
-            currentView = view;
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                if (btn.getAttribute('data-view') === view) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
-            renderTable();
-        }
-        
-        // 初始化
-        if (SUPABASE_URL && SUPABASE_URL !== 'https://你的项目.supabase.co') {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            loadAllFromSupabase();
-        } else {
-            console.warn('请配置 Supabase URL 和 Anon Key');
-            alert("⚠️ 请先在代码中配置你的 Supabase URL 和 Anon Key！\n当前为前端演示模式，无数据存储功能。");
-            wechatAccounts = [];
-            qqAccounts = [];
-            renderTable();
-        }
-        
-        // 绑定事件
-        const addBtn = document.getElementById('addNewBtn');
-        const resetBtn = document.getElementById('resetDefaultBtn');
-        if (addBtn) addBtn.addEventListener('click', addNewAccount);
-        if (resetBtn) resetBtn.addEventListener('click', resetCurrentView);
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => switchView(btn.getAttribute('data-view')));
-        });
-    })();
+(() => {
+  // ============ 配置 ============
+  const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co'; // 你的 Supabase URL
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM'; // 你的 anon key
+
+  // ============ 全局状态 ============
+  let supabase = null;
+  let currentUser = null;
+  let userRole = 'user'; // 'user' | 'admin'
+  let currentView = 'wechat';
+  let wechatAccounts = [];
+  let qqAccounts = [];
+  const NINE_GRID_DAILY_COST_WAN = 2000;
+  const HB_TO_RMB_RATE = 38;
+
+  // ============ 工具函数 ============
+  function showToast(msg) {
+    const existing = document.querySelector('.toast-notice');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = 'toast-notice';
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+  function showLoading(show) {
+    if (show) {
+      if (document.querySelector('.loading-overlay')) return;
+      const div = document.createElement('div');
+      div.className = 'loading-overlay';
+      div.innerText = '⏳ 同步中...';
+      document.body.appendChild(div);
+    } else {
+      const el = document.querySelector('.loading-overlay');
+      if (el) el.remove();
+    }
+  }
+  function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]||m)); }
+  function escapeAttr(str) { return String(str).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]||m)); }
+
+  // ============ 鉴权 ============
+  async function initSupabase() {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        currentUser = session.user;
+        await fetchUserRole();
+        document.getElementById('authModal').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        updateUserUI();
+        loadData();
+        updateStats();
+      } else {
+        currentUser = null;
+        userRole = 'user';
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('authModal').style.display = 'flex';
+      }
+    });
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      await fetchUserRole();
+      document.getElementById('authModal').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      updateUserUI();
+      loadData();
+      updateStats();
+    } else {
+      document.getElementById('authModal').style.display = 'flex';
+    }
+  }
+  async function fetchUserRole() {
+    if (!currentUser) return;
+    const { data } = await supabase.from('profiles').select('role').eq('id', currentUser.id).single();
+    userRole = data?.role || 'user';
+  }
+  function updateUserUI() {
+    const greet = document.getElementById('userGreeting');
+    const roleText = userRole === 'admin' ? '👑 管理员' : '👤 用户';
+    greet.innerText = `${currentUser.email} (${roleText})`;
+  }
+
+  // ============ 登录/注册逻辑 ============
+  let isLoginMode = true;
+  const authModal = document.getElementById('authModal');
+  const authTitle = document.getElementById('authTitle');
+  const switchBtn = document.getElementById('switchAuthMode');
+  const submitBtn = document.getElementById('submitAuth');
+  const emailInput = document.getElementById('authEmail');
+  const passwordInput = document.getElementById('authPassword');
+
+  switchBtn.addEventListener('click', () => {
+    isLoginMode = !isLoginMode;
+    authTitle.innerText = isLoginMode ? '🔐 登录' : '📝 注册';
+    submitBtn.innerText = isLoginMode ? '登录' : '注册';
+    switchBtn.innerText = isLoginMode ? '没有账号？去注册' : '已有账号？去登录';
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    if (!email || !password) return showToast('请填写邮箱和密码');
+    showLoading(true);
+    try {
+      if (isLoginMode) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        showToast('注册成功！请检查邮箱（或自动登录）');
+      }
+    } catch (err) {
+      showToast('操作失败: ' + err.message);
+    } finally {
+      showLoading(false);
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    currentUser = null;
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('authModal').style.display = 'flex';
+    wechatAccounts = [];
+    qqAccounts = [];
+  });
+
+  // ============ 数据加载 ============
+  async function loadData() {
+    if (!currentUser) return;
+    showLoading(true);
+    try {
+      let query = supabase.from('accounts').select('*');
+      if (userRole !== 'admin') query = query.eq('user_id', currentUser.id);
+      const { data, error } = await query;
+      if (error) throw error;
+      wechatAccounts = [];
+      qqAccounts = [];
+      data.forEach(row => {
+        const acc = dbRowToAccount(row);
+        syncSafeBoxByCondition(acc, false);
+        if (row.platform === 'wechat') wechatAccounts.push(acc);
+        else qqAccounts.push(acc);
+      });
+      renderTable();
+    } catch (err) {
+      showToast('加载失败: ' + err.message);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function dbRowToAccount(row) {
+    const acc = {
+      id: row.id,
+      user_id: row.user_id,
+      name: row.name,
+      gameName: row.game_name || '',
+      contact: row.contact || '',
+      stamina: row.stamina,
+      endurance: row.endurance,
+      hbCoin: Number(row.hb_coin),
+      grid9Days: Number(row.grid9_days),
+      safeBoxSize: row.safe_box_size,
+      status: row.status,
+      credit: row.credit,
+      realName: row.real_name || '',
+      bindAccount: row.bind_account || '未绑定',
+      phone: row.phone || '',
+      currentSaleAmount: Number(row.current_sale_amount),
+      totalSaleAmount: Number(row.total_sale_amount),
+      lastStatusChangeTime: Number(row.last_status_change_time),
+      platform: row.platform
+    };
+    return acc;
+  }
+
+  // ============ 核心业务逻辑 ============
+  function isCoverConditionMet(acc) {
+    return (acc.grid9Days * NINE_GRID_DAILY_COST_WAN) >= acc.hbCoin && acc.hbCoin > 0;
+  }
+  function syncSafeBoxByCondition(acc, showMsg = true) {
+    const cond = isCoverConditionMet(acc);
+    if (cond && acc.safeBoxSize !== 9) {
+      acc.safeBoxSize = 9;
+      if (showMsg) showToast(`✨ "${acc.name}" 九格卡覆盖，安全箱升为9格`);
+    } else if (!cond && acc.safeBoxSize === 9) {
+      acc.safeBoxSize = 4;
+      if (showMsg) showToast(`⚠️ "${acc.name}" 不再覆盖，安全箱降回4格`);
+    }
+  }
+
+  async function recordSale(acc, amount) {
+    if (!acc.id || amount <= 0) return;
+    const { error } = await supabase.from('sales').insert({
+      account_id: acc.id,
+      user_id: acc.user_id,
+      account_name: acc.name,
+      platform: acc.platform,
+      amount: amount
+    });
+    if (error) console.error('记录销售失败', error);
+    else updateStats();
+  }
+
+  async function handleStatusChange(acc, oldStatus, newStatus) {
+    const now = Date.now();
+    if (oldStatus === '售出中' && newStatus === '未售') {
+      const saleVal = acc.currentSaleAmount || 0;
+      acc.totalSaleAmount = (acc.totalSaleAmount || 0) + saleVal;
+      acc.currentSaleAmount = 0;
+      acc.lastStatusChangeTime = now;
+      if (acc.hbCoin !== 0) {
+        acc.hbCoin = 0;
+        showToast(`💸 "${acc.name}" 售出，哈弗币已清零`);
+      }
+      syncSafeBoxByCondition(acc, true);
+      await recordSale(acc, saleVal);
+    } else if (newStatus === '未售' && oldStatus !== '未售') {
+      acc.lastStatusChangeTime = now;
+    } else if (oldStatus === '未售' && newStatus !== '未售') {
+      acc.lastStatusChangeTime = 0;
+    }
+  }
+
+  // ============ 收入统计 ============
+  async function updateStats() {
+    if (!currentUser) return;
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    let todayQ = supabase.from('sales').select('amount').gte('sold_at', startOfDay);
+    let monthQ = supabase.from('sales').select('amount').gte('sold_at', startOfMonth);
+    let allQ = supabase.from('sales').select('amount');
+
+    if (userRole !== 'admin') {
+      todayQ = todayQ.eq('user_id', currentUser.id);
+      monthQ = monthQ.eq('user_id', currentUser.id);
+      allQ = allQ.eq('user_id', currentUser.id);
+    }
+
+    const [todayRes, monthRes, allRes] = await Promise.all([todayQ, monthQ, allQ]);
+    const sum = (data) => data.reduce((a, r) => a + parseFloat(r.amount), 0);
+    document.getElementById('todayIncome').innerText = sum(todayRes.data).toFixed(2);
+    document.getElementById('monthIncome').innerText = sum(monthRes.data).toFixed(2);
+    document.getElementById('globalTotalAmount').innerText = sum(allRes.data).toFixed(2);
+
+    // 哈弗币总估值
+    let totalHb = 0;
+    (userRole === 'admin' ? [...wechatAccounts,...qqAccounts] : getCurrentAccounts())
+      .forEach(a => totalHb += (a.hbCoin||0));
+    document.getElementById('globalHbEstimate').innerText = (totalHb / HB_TO_RMB_RATE).toFixed(2);
+  }
+
+  // ============ 渲染表格 ============
+  function renderTable() {
+    const accounts = getCurrentAccounts();
+    const cols = getColumns();
+    const thead = document.getElementById('tableHeader');
+    const tbody = document.getElementById('tableBody');
+    thead.innerHTML = `<tr>${cols.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
+    if (!accounts.length) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="${cols.length}">✨ 暂无账号，点击新增 ✨</td></tr>`;
+      document.getElementById('totalSalesAll').innerText = '0.00 元';
+      updateStats();
+      return;
+    }
+    let html = '';
+    accounts.forEach((acc, idx) => {
+      const statusClass = acc.status==='售出中'?'status-sold':(acc.status==='待售处'?'status-waiting':'status-unsold');
+      const creditClass = acc.credit==='OK'?'credit-ok':(acc.credit==='差'?'credit-bad':'credit-normal');
+      const isCover = isCoverConditionMet(acc);
+      const rowClass = isCover ? 'row-cover-active' : '';
+      const daysSince = (acc.status==='未售' && acc.lastStatusChangeTime)
+        ? Math.floor((Date.now()-acc.lastStatusChangeTime)/(86400000))
+        : 0;
+      let cells = cols.map(col => {
+        const val = acc[col.key] ?? '';
+        if (col.key === 'index') return `<td>${idx+1}</td>`;
+        if (col.key === 'name') return `<td class="editable-cell" data-row="${idx}" data-field="name" data-value="${escapeAttr(acc.name)}">${escapeHtml(acc.name)}</td>`;
+        if (col.key === 'gameName') return `<td class="editable-cell" data-row="${idx}" data-field="gameName" data-value="${escapeAttr(acc.gameName)}">${escapeHtml(acc.gameName||'—')}</td>`;
+        if (col.key === 'contact') return `<td class="editable-cell" data-row="${idx}" data-field="contact" data-value="${escapeAttr(acc.contact)}">${escapeHtml(acc.contact||'—')}</td>`;
+        if (col.key === 'bindAccount') return `<td class="editable-cell" data-row="${idx}" data-field="bindAccount" data-value="${escapeAttr(acc.bindAccount)}">${escapeHtml(acc.bindAccount)}</td>`;
+        if (col.key === 'stamina') return `<td class="editable-cell" data-row="${idx}" data-field="stamina" data-type="select" data-value="${acc.stamina}">${acc.stamina}级</td>`;
+        if (col.key === 'endurance') return `<td class="editable-cell" data-row="${idx}" data-field="endurance" data-type="select" data-value="${acc.endurance}">${acc.endurance}级</td>`;
+        if (col.key === 'hbCoin') return `<td class="editable-cell" data-row="${idx}" data-field="hbCoin" data-type="number" data-value="${acc.hbCoin}">${acc.hbCoin.toLocaleString()} 万</td>`;
+        if (col.key === 'grid9Days') return `<td class="editable-cell" data-row="${idx}" data-field="grid9Days" data-type="number" data-value="${acc.grid9Days}">${acc.grid9Days>0?acc.grid9Days+'天':'—'}</td>`;
+        if (col.key === 'safeBoxSize') return `<td class="editable-cell" data-row="${idx}" data-field="safeBoxSize" data-type="select" data-value="${acc.safeBoxSize}">${acc.safeBoxSize}格${isCover?'<span class="safeBox-cover-badge">✨覆盖</span>':''}</td>`;
+        if (col.key === 'status') return `<td class="editable-cell" data-row="${idx}" data-field="status" data-type="select" data-value="${acc.status}"><span class="badge ${statusClass}">${acc.status}</span></td>`;
+        if (col.key === 'credit') return `<td class="editable-cell" data-row="${idx}" data-field="credit" data-type="select" data-value="${acc.credit}"><span class="badge ${creditClass}">${acc.credit}</span></td>`;
+        if (col.key === 'daysSince') return `<td class="logic-cell">${daysSince} 天</td>`;
+        if (col.key === 'realName') return `<td class="editable-cell" data-row="${idx}" data-field="realName" data-value="${escapeAttr(acc.realName)}">${escapeHtml(acc.realName||'—')}</td>`;
+        if (col.key === 'currentSaleAmount') return `<td class="editable-cell" data-row="${idx}" data-field="currentSaleAmount" data-type="number" data-value="${acc.currentSaleAmount}">${acc.currentSaleAmount.toLocaleString()} 元</td>`;
+        if (col.key === 'totalSaleAmount') return `<td class="logic-cell">${acc.totalSaleAmount.toLocaleString()} 元</td>`;
+        if (col.key === 'phone') return `<td class="editable-cell" data-row="${idx}" data-field="phone" data-value="${escapeAttr(acc.phone)}">${escapeHtml(acc.phone||'—')}</td>`;
+        if (col.key === 'actions') return `<td class="action-btns"><button class="icon-btn delete-btn" data-index="${idx}">🗑️</button></td>`;
+        return '<td>—</td>';
+      });
+      html += `<tr class="${rowClass}">${cells.join('')}</tr>`;
+    });
+    tbody.innerHTML = html;
+    document.getElementById('totalSalesAll').innerText = accounts.reduce((s,a)=>s+(a.totalSaleAmount||0),0).toFixed(2)+' 元';
+    updateStats();
+    attachCellEvents();
+  }
+
+  function getColumns() {
+    return [
+      {key:'index', label:'#'},
+      {key:'name', label:'昵称'},
+      {key:'gameName', label:'🎮游戏名称'},
+      {key:'contact', label:currentView==='wechat'?'💬微信号':'🐧QQ号'},
+      {key:'stamina', label:'💪体'},
+      {key:'endurance', label:'⚡耐'},
+      {key:'hbCoin', label:'💰哈弗币(万)'},
+      {key:'grid9Days', label:'📆9格(天)'},
+      {key:'safeBoxSize', label:'📦安全箱'},
+      {key:'status', label:'🏷️状态'},
+      {key:'credit', label:'⭐信用'},
+      {key:'daysSince', label:'📅距上次出售(天)'},
+      {key:'realName', label:'👤实名认证'},
+      {key:'currentSaleAmount', label:'💰本次售价(元)'},
+      {key:'totalSaleAmount', label:'💎累计出售(元)'},
+      {key:'phone', label:'📞手机号'},
+      {key:'bindAccount', label:currentView==='wechat'?'🔒安全中心·QQ绑定':'🔒安全中心·微信绑定'},
+      {key:'actions', label:'⚙️操作'}
+    ];
+  }
+
+  function attachCellEvents() {
+    document.querySelectorAll('.editable-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        if (cell.querySelector('.inline-editor')) return;
+        const rowIdx = parseInt(cell.dataset.row);
+        const field = cell.dataset.field;
+        const type = cell.dataset.type || 'text';
+        const value = cell.dataset.value || '';
+        startInlineEdit(cell, rowIdx, field, value, type);
+      });
+    });
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.index);
+        await deleteAccount(idx);
+      });
+    });
+  }
+
+  function startInlineEdit(cell, rowIdx, field, currentVal, type) {
+    let editor;
+    if (type === 'select') {
+      const options = {
+        stamina: [1,2,3,4,5,6,7],
+        endurance: [1,2,3,4,5,6,7],
+        safeBoxSize: ['2格','4格','6格','9格'],
+        status: ['售出中','未售','待售处'],
+        credit: ['OK','差','良好']
+      }[field] || [];
+      editor = document.createElement('select');
+      editor.className = 'inline-editor';
+      options.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt;
+        if (field==='safeBoxSize' ? `${currentVal}格`===opt : String(opt)===String(currentVal)) o.selected = true;
+        editor.appendChild(o);
+      });
+    } else {
+      editor = document.createElement('input');
+      editor.type = (field==='hbCoin'||field==='grid9Days'||field==='currentSaleAmount')?'number':'text';
+      editor.className = 'inline-editor';
+      editor.value = currentVal;
+    }
+    cell.innerHTML = '';
+    cell.appendChild(editor);
+    editor.focus();
+    const save = async () => {
+      let newVal = editor.value;
+      if (type==='select' && field==='safeBoxSize') newVal = parseInt(newVal);
+      if (String(newVal) === String(currentVal)) { cancel(); return; }
+      await updateAccountField(rowIdx, field, newVal);
+    };
+    const cancel = () => { cell.innerHTML = cell.dataset.originalHtml || '—'; };
+    editor.addEventListener('blur', save);
+    editor.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();save();} if(e.key==='Escape')cancel(); });
+    cell.dataset.originalHtml = cell.innerHTML;
+  }
+
+  async function updateAccountField(rowIdx, field, newVal) {
+    const accounts = getCurrentAccounts();
+    const acc = accounts[rowIdx];
+    const oldStatus = acc.status;
+    let needSync = false;
+    switch(field) {
+      case 'name': acc.name = newVal?.trim()||'无名'; break;
+      case 'gameName': acc.gameName = newVal?.trim()||''; break;
+      case 'contact': acc.contact = newVal; break;
+      case 'stamina': acc.stamina = Math.min(7,Math.max(1,parseInt(newVal)||3)); break;
+      case 'endurance': acc.endurance = Math.min(7,Math.max(1,parseInt(newVal)||3)); break;
+      case 'hbCoin': acc.hbCoin = parseFloat(newVal)||0; needSync=true; break;
+      case 'grid9Days': acc.grid9Days = parseInt(newVal)||0; needSync=true; break;
+      case 'safeBoxSize': acc.safeBoxSize = [2,4,6,9].includes(Number(newVal))?Number(newVal):4; break;
+      case 'status': acc.status = newVal; break;
+      case 'credit': acc.credit = newVal; break;
+      case 'realName': acc.realName = newVal?.trim()||''; break;
+      case 'bindAccount': acc.bindAccount = newVal?.trim()||'未绑定'; break;
+      case 'phone': acc.phone = newVal?.trim()||''; break;
+      case 'currentSaleAmount': acc.currentSaleAmount = parseFloat(newVal)||0; break;
+    }
+    if (field === 'status') {
+      handleStatusChange(acc, oldStatus, acc.status);
+      needSync = true;
+    }
+    if (needSync) syncSafeBoxByCondition(acc, true);
+    await saveAccountToDB(acc);
+    renderTable();
+  }
+
+  async function saveAccountToDB(acc) {
+    const row = {
+      id: acc.id,
+      user_id: acc.user_id || currentUser.id,
+      name: acc.name,
+      game_name: acc.gameName,
+      contact: acc.contact,
+      stamina: acc.stamina,
+      endurance: acc.endurance,
+      hb_coin: acc.hbCoin,
+      grid9_days: acc.grid9Days,
+      safe_box_size: acc.safeBoxSize,
+      status: acc.status,
+      credit: acc.credit,
+      real_name: acc.realName,
+      bind_account: acc.bindAccount,
+      phone: acc.phone,
+      current_sale_amount: acc.currentSaleAmount,
+      total_sale_amount: acc.totalSaleAmount,
+      last_status_change_time: acc.lastStatusChangeTime,
+      platform: acc.platform || currentView
+    };
+    const { error } = await supabase.from('accounts').upsert(row, {onConflict:'id'});
+    if (error) showToast('保存失败: '+error.message);
+  }
+
+  async function addNewAccount() {
+    const name = prompt('输入昵称', '新账号');
+    if (name === null) return;
+    const acc = {
+      name: name.trim()||'新账号',
+      gameName:'', contact:'', stamina:3, endurance:3, hbCoin:0, grid9Days:0,
+      safeBoxSize:4, status:'未售', credit:'OK', realName:'', bindAccount:'未绑定',
+      phone:'', currentSaleAmount:0, totalSaleAmount:0, lastStatusChangeTime:Date.now(),
+      platform: currentView, user_id: currentUser.id
+    };
+    const row = {...acc, game_name:acc.gameName, real_name:acc.realName, bind_account:acc.bindAccount,
+      hb_coin:0, grid9_days:0, safe_box_size:4, current_sale_amount:0, total_sale_amount:0,
+      last_status_change_time: acc.lastStatusChangeTime
+    };
+    const { data, error } = await supabase.from('accounts').insert(row).select();
+    if (error) return showToast('新增失败: '+error.message);
+    acc.id = data[0].id;
+    getCurrentAccounts().push(acc);
+    renderTable();
+  }
+
+  async function deleteAccount(idx) {
+    const accounts = getCurrentAccounts();
+    const acc = accounts[idx];
+    if (!confirm(`确定删除「${acc.name}」？`)) return;
+    const { error } = await supabase.from('accounts').delete().eq('id', acc.id);
+    if (error) return showToast('删除失败: '+error.message);
+    accounts.splice(idx,1);
+    renderTable();
+  }
+
+  async function resetCurrentView() {
+    if (!confirm(`⚠️ 清空当前【${currentView==='wechat'?'微信':'QQ'}】所有数据？`)) return;
+    const accounts = getCurrentAccounts();
+    const ids = accounts.map(a => a.id);
+    if (ids.length) {
+      const { error } = await supabase.from('accounts').delete().in('id', ids);
+      if (error) return showToast('清空失败: '+error.message);
+    }
+    if (currentView==='wechat') wechatAccounts = []; else qqAccounts = [];
+    renderTable();
+  }
+
+  function getCurrentAccounts() {
+    return currentView==='wechat' ? wechatAccounts : qqAccounts;
+  }
+
+  function switchView(view) {
+    currentView = view;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.view===view));
+    renderTable();
+  }
+
+  // ============ 初始化 ============
+  document.getElementById('addNewBtn').addEventListener('click', addNewAccount);
+  document.getElementById('resetDefaultBtn').addEventListener('click', resetCurrentView);
+  document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+  initSupabase().then(() => console.log('App ready'));
+})();
 </script>
 </body>
 </html>
