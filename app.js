@@ -62,6 +62,7 @@
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       console.log('✅ Supabase 客户端创建成功');
 
+      console.log('🔁 注册 onAuthStateChange 监听...');
       supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔔 鉴权状态变化:', event, session?.user?.email);
         if (session?.user) {
@@ -76,9 +77,14 @@
           showAuthModal();
         }
       });
+      console.log('✅ onAuthStateChange 监听已注册');
 
-      // 初始检查会话
-      const { data: { session } } = await supabase.auth.getSession();
+      console.log('📦 正在获取当前会话...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('❌ getSession 出错:', sessionError);
+        throw sessionError;
+      }
       console.log('📦 当前会话:', session?.user?.email);
       if (session) {
         currentUser = session.user;
@@ -93,9 +99,10 @@
       }
     } catch (err) {
       console.error('❌ 初始化失败:', err);
-      alert('系统初始化失败，请检查 Supabase 配置。');
+      alert('系统初始化失败，请检查 Supabase 配置。错误：' + err.message);
     }
   }
+
 
   async function fetchUserRole() {
     if (!currentUser) return;
