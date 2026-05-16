@@ -1,13 +1,20 @@
 (function () {
+  // ======================== 配置 ========================
   const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM';
 
-  let supabase, currentUser, userRole = 'user', currentView = 'wechat';
-  let wechatAccounts = [], qqAccounts = [];
+  // ======================== 全局变量 ========================
+  let supabase = null;
+  let currentUser = null;
+  let userRole = 'user';
+  let currentView = 'wechat';
+  let wechatAccounts = [];
+  let qqAccounts = [];
+
   const NINE_GRID_DAILY_COST_WAN = 2000;
   const HB_TO_RMB_RATE = 38;
 
-  // DOM elements
+  // ======================== DOM 元素 ========================
   const appDiv = document.getElementById('app');
   const authModal = document.getElementById('authModal');
   const loadingOverlay = document.getElementById('loadingOverlay');
@@ -24,13 +31,15 @@
 
   let isLoginMode = true;
 
-  // Toast
+  // ======================== 工具函数 ========================
   function showToast(msg) {
     const existing = document.querySelector('.toast-notice');
     if (existing) existing.remove();
     const toast = document.createElement('div');
     toast.className = 'toast-notice';
     toast.innerText = msg;
+    // 确保显示在所有元素之上（包括模态框）
+    toast.style.zIndex = '4000';
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
   }
@@ -47,24 +56,7 @@
     return String(str).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] || m));
   }
 
-  // ============== 关键修复：无论如何 4 秒后必须显示登录框 ==============
-  setTimeout(() => {
-    if (appDiv.style.display !== 'block' && authModal.style.display !== 'flex') {
-      console.warn('⚠️ 4秒未正常显示界面，强制弹出登录框');
-      authModal.style.display = 'flex';
-      authModal.style.position = 'fixed';
-      authModal.style.top = '0';
-      authModal.style.left = '0';
-      authModal.style.width = '100%';
-      authModal.style.height = '100%';
-      authModal.style.background = 'rgba(0,0,0,0.6)';
-      authModal.style.alignItems = 'center';
-      authModal.style.justifyContent = 'center';
-      authModal.style.zIndex = '3000';
-    }
-  }, 4000);
-
-  // ============== 鉴权逻辑 ==============
+  // ======================== 鉴权逻辑 ========================
   async function initAuth() {
     try {
       console.log('🚀 初始化 Supabase...');
@@ -86,13 +78,14 @@
         }
       });
 
+      // 安全获取当前会话，出错则清除本地无效令牌并显示登录框
       let session = null;
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         session = data.session;
       } catch (e) {
-        console.warn('⚠️ 获取会话失败，清除本地缓存并继续:', e.message);
+        console.warn('⚠️ 获取会话失败，清除本地缓存:', e.message);
         await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
       }
 
@@ -107,7 +100,7 @@
       }
     } catch (err) {
       console.error('❌ 初始化异常:', err);
-      showAuthModal(); // 兜底
+      showAuthModal(); // 兜底显示登录框
     }
   }
 
@@ -126,6 +119,7 @@
   function showAuthModal() {
     appDiv.style.display = 'none';
     authModal.style.display = 'flex';
+    // 兜底样式（防止 CSS 加载失败时仍可见）
     authModal.style.position = 'fixed';
     authModal.style.top = '0';
     authModal.style.left = '0';
@@ -137,7 +131,7 @@
     authModal.style.zIndex = '3000';
   }
 
-  // ============== 登录/注册 ==============
+  // ======================== 登录/注册表单（优化错误反馈） ========================
   switchAuthBtn.addEventListener('click', () => {
     isLoginMode = !isLoginMode;
     authTitle.innerText = isLoginMode ? '🔐 登录' : '📝 注册';
@@ -153,22 +147,40 @@
     setLoading(true);
     try {
       if (isLoginMode) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          // 细化常见错误提示，特别是邮箱未验证
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('邮箱或密码错误');
+          } else if (error.message.includes('Email not confirmed')) {
+            throw new Error('邮箱未验证，请检查收件箱（含垃圾邮件）并点击确认链接');
+          } else {
+            throw error;
+          }
+        }
         showToast('登录成功');
       } else {
+        // 注册
         const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('already registered')) {
+            throw new Error('该邮箱已被注册，请直接登录或检查验证邮件');
+          } else {
+            throw error;
+          }
+        }
+        // 处理邮箱确认开启时的响应
         if (data?.user?.identities?.length === 0) {
-          showToast('📨 注册成功！请检查邮箱并点击确认链接激活账户。');
+          showToast('📨 该邮箱已注册但未验证，请检查邮箱并点击确认链接');
+        } else if (data?.session === null) {
+          // 邮箱确认开启且为全新注册，Supabase 返回 user 但没有 session
+          showToast('📨 注册成功！请检查邮箱并点击确认链接后登录');
         } else {
-          showToast('✅ 注册成功！已自动登录。');
+          showToast('✅ 注册成功，已自动登录');
         }
       }
     } catch (err) {
-      let msg = '操作失败: ' + err.message;
-      if (err.message.includes('already registered')) msg = '该邮箱已被注册，请直接登录。';
-      showToast(msg);
+      showToast(err.message);
     } finally {
       setLoading(false);
     }
@@ -180,7 +192,7 @@
     setLoading(false);
   });
 
-  // ======================== 数据操作 ========================
+  // ======================== 数据操作（以下代码与之前完全一致） ========================
   async function loadData() {
     if (!currentUser) return;
     setLoading(true);
@@ -301,7 +313,6 @@
     document.getElementById('monthIncome').innerText = sum(monthRes.data).toFixed(2);
     document.getElementById('globalTotalAmount').innerText = sum(allRes.data).toFixed(2);
 
-    // 哈弗币总估值
     let totalHb = 0;
     (userRole === 'admin' ? [...wechatAccounts, ...qqAccounts] : getCurrentAccounts())
       .forEach(a => totalHb += (a.hbCoin || 0));
@@ -446,7 +457,7 @@
       await updateAccountField(rowIdx, field, newVal);
     };
 
-    const cancel = () => { renderTable(); }; // 恢复整个表格
+    const cancel = () => { renderTable(); };
 
     editor.addEventListener('blur', save);
     editor.addEventListener('keydown', e => {
@@ -590,6 +601,6 @@
   resetBtn.addEventListener('click', resetCurrentView);
   tabBtns.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
 
-  // 末尾启动
+  // ======================== 启动 ========================
   initAuth();
 })();
