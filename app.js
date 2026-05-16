@@ -38,8 +38,7 @@
     const toast = document.createElement('div');
     toast.className = 'toast-notice';
     toast.innerText = msg;
-    // 确保显示在所有元素之上（包括模态框）
-    toast.style.zIndex = '4000';
+    toast.style.zIndex = '4000'; // 高于模态框
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
   }
@@ -66,11 +65,23 @@
       supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔔 鉴权状态变化:', event, session?.user?.email);
         if (session?.user) {
-          currentUser = session.user;
-          await fetchUserRole();
-          showApp();
-          loadData();
-          updateStats();
+          try {
+            console.log('👤 开始设置用户...');
+            currentUser = session.user;
+            console.log('🔍 正在获取角色...');
+            await fetchUserRole();
+            console.log('✅ 角色获取完成:', userRole);
+            console.log('📱 调用 showApp...');
+            showApp();
+            console.log('📊 开始加载数据...');
+            await loadData();
+            console.log('📈 更新统计...');
+            await updateStats();
+            console.log('🎉 登录流程全部完成');
+          } catch (innerErr) {
+            console.error('💥 登录后初始化失败:', innerErr);
+            showToast('系统初始化出错: ' + innerErr.message);
+          }
         } else {
           currentUser = null;
           userRole = 'user';
@@ -78,7 +89,7 @@
         }
       });
 
-      // 安全获取当前会话，出错则清除本地无效令牌并显示登录框
+      // 安全获取当前会话，出错则清除本地无效令牌
       let session = null;
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -93,21 +104,28 @@
         currentUser = session.user;
         await fetchUserRole();
         showApp();
-        loadData();
-        updateStats();
+        await loadData();
+        await updateStats();
       } else {
         showAuthModal();
       }
     } catch (err) {
       console.error('❌ 初始化异常:', err);
-      showAuthModal(); // 兜底显示登录框
+      showAuthModal();
     }
   }
 
   async function fetchUserRole() {
     if (!currentUser) return;
-    const { data } = await supabase.from('profiles').select('role').eq('id', currentUser.id).single();
-    userRole = data?.role || 'user';
+    try {
+      const { data, error } = await supabase.from('profiles').select('role').eq('id', currentUser.id).single();
+      if (error) throw error;
+      userRole = data?.role || 'user';
+    } catch (e) {
+      console.error('❌ 获取角色失败:', e);
+      userRole = 'user';
+      showToast('角色加载失败，已使用默认权限');
+    }
   }
 
   function showApp() {
@@ -119,7 +137,6 @@
   function showAuthModal() {
     appDiv.style.display = 'none';
     authModal.style.display = 'flex';
-    // 兜底样式（防止 CSS 加载失败时仍可见）
     authModal.style.position = 'fixed';
     authModal.style.top = '0';
     authModal.style.left = '0';
@@ -131,7 +148,7 @@
     authModal.style.zIndex = '3000';
   }
 
-  // ======================== 登录/注册表单（优化错误反馈） ========================
+  // ======================== 登录/注册表单 ========================
   switchAuthBtn.addEventListener('click', () => {
     isLoginMode = !isLoginMode;
     authTitle.innerText = isLoginMode ? '🔐 登录' : '📝 注册';
@@ -149,7 +166,6 @@
       if (isLoginMode) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-          // 细化常见错误提示，特别是邮箱未验证
           if (error.message.includes('Invalid login credentials')) {
             throw new Error('邮箱或密码错误');
           } else if (error.message.includes('Email not confirmed')) {
@@ -160,7 +176,6 @@
         }
         showToast('登录成功');
       } else {
-        // 注册
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) {
           if (error.message.includes('already registered')) {
@@ -169,11 +184,9 @@
             throw error;
           }
         }
-        // 处理邮箱确认开启时的响应
         if (data?.user?.identities?.length === 0) {
           showToast('📨 该邮箱已注册但未验证，请检查邮箱并点击确认链接');
         } else if (data?.session === null) {
-          // 邮箱确认开启且为全新注册，Supabase 返回 user 但没有 session
           showToast('📨 注册成功！请检查邮箱并点击确认链接后登录');
         } else {
           showToast('✅ 注册成功，已自动登录');
@@ -192,7 +205,7 @@
     setLoading(false);
   });
 
-  // ======================== 数据操作（以下代码与之前完全一致） ========================
+  // ======================== 数据操作（业务代码，不变） ========================
   async function loadData() {
     if (!currentUser) return;
     setLoading(true);
