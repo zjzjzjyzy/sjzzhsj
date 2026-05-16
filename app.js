@@ -1,20 +1,12 @@
 (function () {
-  // ======================== 配置 ========================
   const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM';
 
-  // ======================== 全局变量 ========================
-  let supabase = null;
-  let currentUser = null;
-  let userRole = 'user';
-  let currentView = 'wechat';
-  let wechatAccounts = [];
-  let qqAccounts = [];
-
+  let supabase, currentUser, userRole = 'user', currentView = 'wechat';
+  let wechatAccounts = [], qqAccounts = [];
   const NINE_GRID_DAILY_COST_WAN = 2000;
   const HB_TO_RMB_RATE = 38;
 
-  // ======================== DOM 元素 ========================
   const appDiv = document.getElementById('app');
   const authModal = document.getElementById('authModal');
   const loadingOverlay = document.getElementById('loadingOverlay');
@@ -28,17 +20,15 @@
   const submitAuthBtn = document.getElementById('submitAuth');
   const authEmail = document.getElementById('authEmail');
   const authPassword = document.getElementById('authPassword');
-
   let isLoginMode = true;
 
-  // ======================== 工具函数 ========================
   function showToast(msg) {
     const existing = document.querySelector('.toast-notice');
     if (existing) existing.remove();
     const toast = document.createElement('div');
     toast.className = 'toast-notice';
     toast.innerText = msg;
-    toast.style.zIndex = '4000'; // 高于模态框
+    toast.style.zIndex = '4000';
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
   }
@@ -55,7 +45,7 @@
     return String(str).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] || m));
   }
 
-  // ======================== 鉴权逻辑 ========================
+  // ========== 关键：初始化鉴权，带超时保护 ==========
   async function initAuth() {
     try {
       console.log('🚀 初始化 Supabase...');
@@ -66,21 +56,14 @@
         console.log('🔔 鉴权状态变化:', event, session?.user?.email);
         if (session?.user) {
           try {
-            console.log('👤 开始设置用户...');
             currentUser = session.user;
-            console.log('🔍 正在获取角色...');
             await fetchUserRole();
-            console.log('✅ 角色获取完成:', userRole);
-            console.log('📱 调用 showApp...');
             showApp();
-            console.log('📊 开始加载数据...');
             await loadData();
-            console.log('📈 更新统计...');
             await updateStats();
-            console.log('🎉 登录流程全部完成');
-          } catch (innerErr) {
-            console.error('💥 登录后初始化失败:', innerErr);
-            showToast('系统初始化出错: ' + innerErr.message);
+          } catch (e) {
+            console.error('💥 登录后初始化失败:', e);
+            showToast('初始化出错: ' + e.message);
           }
         } else {
           currentUser = null;
@@ -89,14 +72,27 @@
         }
       });
 
-      // 安全获取当前会话，出错则清除本地无效令牌
+      // 主动检查并清理可能无效的本地令牌
+      const localSession = JSON.parse(localStorage.getItem('supabase.auth.token') || 'null');
+      if (localSession?.currentSession?.expires_at) {
+        const expiresAt = localSession.currentSession.expires_at;
+        if (expiresAt < Math.floor(Date.now() / 1000)) {
+          console.warn('⚠️ 本地令牌已过期，主动清除');
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+        }
+      }
+
+      // 带超时的 getSession
+      console.log('📦 正在获取会话（5秒超时）...');
       let session = null;
       try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        session = data.session;
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]);
+        session = result.data?.session;
       } catch (e) {
-        console.warn('⚠️ 获取会话失败，清除本地缓存:', e.message);
+        console.warn('⚠️ 获取会话出错或超时，清除本地令牌:', e.message);
         await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
       }
 
@@ -107,6 +103,7 @@
         await loadData();
         await updateStats();
       } else {
+        console.log('❌ 无有效会话，显示登录框');
         showAuthModal();
       }
     } catch (err) {
@@ -124,7 +121,6 @@
     } catch (e) {
       console.error('❌ 获取角色失败:', e);
       userRole = 'user';
-      showToast('角色加载失败，已使用默认权限');
     }
   }
 
@@ -148,7 +144,7 @@
     authModal.style.zIndex = '3000';
   }
 
-  // ======================== 登录/注册表单 ========================
+  // ========== 登录/注册 ==========
   switchAuthBtn.addEventListener('click', () => {
     isLoginMode = !isLoginMode;
     authTitle.innerText = isLoginMode ? '🔐 登录' : '📝 注册';
@@ -160,29 +156,21 @@
     const email = authEmail.value.trim();
     const password = authPassword.value;
     if (!email || !password) return showToast('请填写邮箱和密码');
-
     setLoading(true);
     try {
       if (isLoginMode) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-          if (error.message.includes('Invalid login credentials')) {
-            throw new Error('邮箱或密码错误');
-          } else if (error.message.includes('Email not confirmed')) {
-            throw new Error('邮箱未验证，请检查收件箱（含垃圾邮件）并点击确认链接');
-          } else {
-            throw error;
-          }
+          if (error.message.includes('Invalid login credentials')) throw new Error('邮箱或密码错误');
+          if (error.message.includes('Email not confirmed')) throw new Error('邮箱未验证，请检查收件箱（含垃圾邮件）并点击确认链接');
+          throw error;
         }
         showToast('登录成功');
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) {
-          if (error.message.includes('already registered')) {
-            throw new Error('该邮箱已被注册，请直接登录或检查验证邮件');
-          } else {
-            throw error;
-          }
+          if (error.message.includes('already registered')) throw new Error('该邮箱已被注册，请直接登录或检查验证邮件');
+          throw error;
         }
         if (data?.user?.identities?.length === 0) {
           showToast('📨 该邮箱已注册但未验证，请检查邮箱并点击确认链接');
@@ -205,7 +193,7 @@
     setLoading(false);
   });
 
-  // ======================== 数据操作（业务代码，不变） ========================
+  // ========== 数据操作（无改动） ==========
   async function loadData() {
     if (!currentUser) return;
     setLoading(true);
@@ -214,7 +202,6 @@
       if (userRole !== 'admin') query = query.eq('user_id', currentUser.id);
       const { data, error } = await query;
       if (error) throw error;
-
       wechatAccounts = [];
       qqAccounts = [];
       data.forEach(row => {
@@ -233,25 +220,15 @@
 
   function dbRowToAccount(row) {
     return {
-      id: row.id,
-      user_id: row.user_id,
-      name: row.name,
-      gameName: row.game_name || '',
-      contact: row.contact || '',
-      stamina: row.stamina,
-      endurance: row.endurance,
-      hbCoin: Number(row.hb_coin),
-      grid9Days: Number(row.grid9_days),
-      safeBoxSize: row.safe_box_size,
-      status: row.status,
-      credit: row.credit,
-      realName: row.real_name || '',
-      bindAccount: row.bind_account || '未绑定',
-      phone: row.phone || '',
-      currentSaleAmount: Number(row.current_sale_amount),
+      id: row.id, user_id: row.user_id, name: row.name,
+      gameName: row.game_name || '', contact: row.contact || '',
+      stamina: row.stamina, endurance: row.endurance,
+      hbCoin: Number(row.hb_coin), grid9Days: Number(row.grid9_days),
+      safeBoxSize: row.safe_box_size, status: row.status, credit: row.credit,
+      realName: row.real_name || '', bindAccount: row.bind_account || '未绑定',
+      phone: row.phone || '', currentSaleAmount: Number(row.current_sale_amount),
       totalSaleAmount: Number(row.total_sale_amount),
-      lastStatusChangeTime: Number(row.last_status_change_time),
-      platform: row.platform
+      lastStatusChangeTime: Number(row.last_status_change_time), platform: row.platform
     };
   }
 
@@ -273,11 +250,8 @@
   async function recordSale(acc, amount) {
     if (!acc.id || amount <= 0) return;
     const { error } = await supabase.from('sales').insert({
-      account_id: acc.id,
-      user_id: acc.user_id,
-      account_name: acc.name,
-      platform: acc.platform,
-      amount: amount
+      account_id: acc.id, user_id: acc.user_id, account_name: acc.name,
+      platform: acc.platform, amount: amount
     });
     if (error) console.error('记录销售失败', error);
     else updateStats();
@@ -308,36 +282,29 @@
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
     let todayQ = supabase.from('sales').select('amount').gte('sold_at', startOfDay);
     let monthQ = supabase.from('sales').select('amount').gte('sold_at', startOfMonth);
     let allQ = supabase.from('sales').select('amount');
-
     if (userRole !== 'admin') {
       todayQ = todayQ.eq('user_id', currentUser.id);
       monthQ = monthQ.eq('user_id', currentUser.id);
       allQ = allQ.eq('user_id', currentUser.id);
     }
-
     const [todayRes, monthRes, allRes] = await Promise.all([todayQ, monthQ, allQ]);
     const sum = (data) => data.reduce((s, r) => s + parseFloat(r.amount), 0);
-
     document.getElementById('todayIncome').innerText = sum(todayRes.data).toFixed(2);
     document.getElementById('monthIncome').innerText = sum(monthRes.data).toFixed(2);
     document.getElementById('globalTotalAmount').innerText = sum(allRes.data).toFixed(2);
-
     let totalHb = 0;
     (userRole === 'admin' ? [...wechatAccounts, ...qqAccounts] : getCurrentAccounts())
       .forEach(a => totalHb += (a.hbCoin || 0));
     document.getElementById('globalHbEstimate').innerText = (totalHb / HB_TO_RMB_RATE).toFixed(2);
   }
 
-  // ======================== 表格渲染 ========================
   function renderTable() {
     const accounts = getCurrentAccounts();
     const cols = getColumns();
     document.getElementById('tableHeader').innerHTML = `<tr>${cols.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
-
     const tbody = document.getElementById('tableBody');
     if (!accounts.length) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="${cols.length}">✨ 暂无账号，点击新增 ✨</td></tr>`;
@@ -345,17 +312,13 @@
       updateStats();
       return;
     }
-
     let html = '';
     accounts.forEach((acc, idx) => {
       const statusClass = acc.status === '售出中' ? 'status-sold' : (acc.status === '待售处' ? 'status-waiting' : 'status-unsold');
       const creditClass = acc.credit === 'OK' ? 'credit-ok' : (acc.credit === '差' ? 'credit-bad' : 'credit-normal');
       const isCover = isCoverConditionMet(acc);
       const rowClass = isCover ? 'row-cover-active' : '';
-      const daysSince = (acc.status === '未售' && acc.lastStatusChangeTime)
-        ? Math.floor((Date.now() - acc.lastStatusChangeTime) / 86400000)
-        : 0;
-
+      const daysSince = (acc.status === '未售' && acc.lastStatusChangeTime) ? Math.floor((Date.now() - acc.lastStatusChangeTime) / 86400000) : 0;
       const cells = cols.map(col => {
         switch (col.key) {
           case 'index': return `<td>${idx + 1}</td>`;
@@ -379,10 +342,8 @@
           default: return '<td>—</td>';
         }
       });
-
       html += `<tr class="${rowClass}">${cells.join('')}</tr>`;
     });
-
     tbody.innerHTML = html;
     document.getElementById('totalSalesAll').innerText = accounts.reduce((s, a) => s + (a.totalSaleAmount || 0), 0).toFixed(2) + ' 元';
     updateStats();
@@ -391,22 +352,14 @@
 
   function getColumns() {
     return [
-      { key: 'index', label: '#' },
-      { key: 'name', label: '昵称' },
-      { key: 'gameName', label: '🎮游戏名称' },
-      { key: 'contact', label: currentView === 'wechat' ? '💬微信号' : '🐧QQ号' },
-      { key: 'stamina', label: '💪体' },
-      { key: 'endurance', label: '⚡耐' },
-      { key: 'hbCoin', label: '💰哈弗币(万)' },
-      { key: 'grid9Days', label: '📆9格(天)' },
-      { key: 'safeBoxSize', label: '📦安全箱' },
-      { key: 'status', label: '🏷️状态' },
-      { key: 'credit', label: '⭐信用' },
-      { key: 'daysSince', label: '📅距上次出售(天)' },
-      { key: 'realName', label: '👤实名认证' },
-      { key: 'currentSaleAmount', label: '💰本次售价(元)' },
-      { key: 'totalSaleAmount', label: '💎累计出售(元)' },
-      { key: 'phone', label: '📞手机号' },
+      { key: 'index', label: '#' }, { key: 'name', label: '昵称' },
+      { key: 'gameName', label: '🎮游戏名称' }, { key: 'contact', label: currentView === 'wechat' ? '💬微信号' : '🐧QQ号' },
+      { key: 'stamina', label: '💪体' }, { key: 'endurance', label: '⚡耐' },
+      { key: 'hbCoin', label: '💰哈弗币(万)' }, { key: 'grid9Days', label: '📆9格(天)' },
+      { key: 'safeBoxSize', label: '📦安全箱' }, { key: 'status', label: '🏷️状态' },
+      { key: 'credit', label: '⭐信用' }, { key: 'daysSince', label: '📅距上次出售(天)' },
+      { key: 'realName', label: '👤实名认证' }, { key: 'currentSaleAmount', label: '💰本次售价(元)' },
+      { key: 'totalSaleAmount', label: '💎累计出售(元)' }, { key: 'phone', label: '📞手机号' },
       { key: 'bindAccount', label: currentView === 'wechat' ? '🔒安全中心·QQ绑定' : '🔒安全中心·微信绑定' },
       { key: 'actions', label: '⚙️操作' }
     ];
@@ -423,7 +376,6 @@
         startInlineEdit(cell, rowIdx, field, value, type);
       });
     });
-
     document.querySelectorAll('.delete-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -437,11 +389,11 @@
     let editor;
     if (type === 'select') {
       const optionsMap = {
-        stamina: [1, 2, 3, 4, 5, 6, 7],
-        endurance: [1, 2, 3, 4, 5, 6, 7],
-        safeBoxSize: ['2格', '4格', '6格', '9格'],
-        status: ['售出中', '未售', '待售处'],
-        credit: ['OK', '差', '良好']
+        stamina: [1,2,3,4,5,6,7],
+        endurance: [1,2,3,4,5,6,7],
+        safeBoxSize: ['2格','4格','6格','9格'],
+        status: ['售出中','未售','待售处'],
+        credit: ['OK','差','良好']
       };
       const options = optionsMap[field] || [];
       editor = document.createElement('select');
@@ -455,23 +407,20 @@
       });
     } else {
       editor = document.createElement('input');
-      editor.type = ['hbCoin', 'grid9Days', 'currentSaleAmount'].includes(field) ? 'number' : 'text';
+      editor.type = ['hbCoin','grid9Days','currentSaleAmount'].includes(field) ? 'number' : 'text';
       editor.className = 'inline-editor';
       editor.value = currentVal;
     }
     cell.innerHTML = '';
     cell.appendChild(editor);
     editor.focus();
-
     const save = async () => {
       let newVal = editor.value;
       if (type === 'select' && field === 'safeBoxSize') newVal = parseInt(newVal);
       if (String(newVal) === String(currentVal)) { cancel(); return; }
       await updateAccountField(rowIdx, field, newVal);
     };
-
     const cancel = () => { renderTable(); };
-
     editor.addEventListener('blur', save);
     editor.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); save(); }
@@ -484,7 +433,6 @@
     const acc = accounts[rowIdx];
     const oldStatus = acc.status;
     let needSync = false;
-
     switch (field) {
       case 'name': acc.name = newVal?.trim() || '无名'; break;
       case 'gameName': acc.gameName = newVal?.trim() || ''; break;
@@ -493,7 +441,7 @@
       case 'endurance': acc.endurance = Math.min(7, Math.max(1, parseInt(newVal) || 3)); break;
       case 'hbCoin': acc.hbCoin = parseFloat(newVal) || 0; needSync = true; break;
       case 'grid9Days': acc.grid9Days = parseInt(newVal) || 0; needSync = true; break;
-      case 'safeBoxSize': acc.safeBoxSize = [2, 4, 6, 9].includes(Number(newVal)) ? Number(newVal) : 4; break;
+      case 'safeBoxSize': acc.safeBoxSize = [2,4,6,9].includes(Number(newVal)) ? Number(newVal) : 4; break;
       case 'status': acc.status = newVal; break;
       case 'credit': acc.credit = newVal; break;
       case 'realName': acc.realName = newVal?.trim() || ''; break;
@@ -501,38 +449,21 @@
       case 'phone': acc.phone = newVal?.trim() || ''; break;
       case 'currentSaleAmount': acc.currentSaleAmount = parseFloat(newVal) || 0; break;
     }
-
-    if (field === 'status') {
-      handleStatusChange(acc, oldStatus, acc.status);
-      needSync = true;
-    }
+    if (field === 'status') { handleStatusChange(acc, oldStatus, acc.status); needSync = true; }
     if (needSync) syncSafeBoxByCondition(acc, true);
-
     await saveAccountToDB(acc);
     renderTable();
   }
 
   async function saveAccountToDB(acc) {
     const row = {
-      id: acc.id,
-      user_id: acc.user_id || currentUser.id,
-      name: acc.name,
-      game_name: acc.gameName,
-      contact: acc.contact,
-      stamina: acc.stamina,
-      endurance: acc.endurance,
-      hb_coin: acc.hbCoin,
-      grid9_days: acc.grid9Days,
-      safe_box_size: acc.safeBoxSize,
-      status: acc.status,
-      credit: acc.credit,
-      real_name: acc.realName,
-      bind_account: acc.bindAccount,
-      phone: acc.phone,
-      current_sale_amount: acc.currentSaleAmount,
-      total_sale_amount: acc.totalSaleAmount,
-      last_status_change_time: acc.lastStatusChangeTime,
-      platform: acc.platform || currentView
+      id: acc.id, user_id: acc.user_id || currentUser.id, name: acc.name,
+      game_name: acc.gameName, contact: acc.contact, stamina: acc.stamina,
+      endurance: acc.endurance, hb_coin: acc.hbCoin, grid9_days: acc.grid9Days,
+      safe_box_size: acc.safeBoxSize, status: acc.status, credit: acc.credit,
+      real_name: acc.realName, bind_account: acc.bindAccount, phone: acc.phone,
+      current_sale_amount: acc.currentSaleAmount, total_sale_amount: acc.totalSaleAmount,
+      last_status_change_time: acc.lastStatusChangeTime, platform: acc.platform || currentView
     };
     const { error } = await supabase.from('accounts').upsert(row, { onConflict: 'id' });
     if (error) showToast('保存失败: ' + error.message);
@@ -542,34 +473,21 @@
     const name = prompt('输入昵称', '新账号');
     if (name === null) return;
     const acc = {
-      name: name.trim() || '新账号',
-      gameName: '', contact: '', stamina: 3, endurance: 3, hbCoin: 0, grid9Days: 0,
-      safeBoxSize: 4, status: '未售', credit: 'OK', realName: '', bindAccount: '未绑定',
-      phone: '', currentSaleAmount: 0, totalSaleAmount: 0, lastStatusChangeTime: Date.now(),
-      platform: currentView, user_id: currentUser.id
+      name: name.trim() || '新账号', gameName: '', contact: '', stamina: 3, endurance: 3,
+      hbCoin: 0, grid9Days: 0, safeBoxSize: 4, status: '未售', credit: 'OK',
+      realName: '', bindAccount: '未绑定', phone: '', currentSaleAmount: 0,
+      totalSaleAmount: 0, lastStatusChangeTime: Date.now(), platform: currentView,
+      user_id: currentUser.id
     };
-
     const { data, error } = await supabase.from('accounts').insert({
-      user_id: acc.user_id,
-      name: acc.name,
-      game_name: acc.gameName,
-      contact: acc.contact,
-      stamina: acc.stamina,
-      endurance: acc.endurance,
-      hb_coin: acc.hbCoin,
-      grid9_days: acc.grid9Days,
-      safe_box_size: acc.safeBoxSize,
-      status: acc.status,
-      credit: acc.credit,
-      real_name: acc.realName,
-      bind_account: acc.bindAccount,
-      phone: acc.phone,
-      current_sale_amount: acc.currentSaleAmount,
-      total_sale_amount: acc.totalSaleAmount,
-      last_status_change_time: acc.lastStatusChangeTime,
+      user_id: acc.user_id, name: acc.name, game_name: acc.gameName, contact: acc.contact,
+      stamina: acc.stamina, endurance: acc.endurance, hb_coin: acc.hbCoin,
+      grid9_days: acc.grid9Days, safe_box_size: acc.safeBoxSize, status: acc.status,
+      credit: acc.credit, real_name: acc.realName, bind_account: acc.bindAccount,
+      phone: acc.phone, current_sale_amount: acc.currentSaleAmount,
+      total_sale_amount: acc.totalSaleAmount, last_status_change_time: acc.lastStatusChangeTime,
       platform: acc.platform
     }).select();
-
     if (error) return showToast('新增失败: ' + error.message);
     acc.id = data[0].id;
     getCurrentAccounts().push(acc);
@@ -609,11 +527,9 @@
     renderTable();
   }
 
-  // ======================== 事件绑定 ========================
   addNewBtn.addEventListener('click', addNewAccount);
   resetBtn.addEventListener('click', resetCurrentView);
   tabBtns.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
 
-  // ======================== 启动 ========================
   initAuth();
 })();
