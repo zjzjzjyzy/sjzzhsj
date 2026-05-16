@@ -62,7 +62,6 @@
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       console.log('✅ Supabase 客户端创建成功');
 
-      console.log('🔁 注册 onAuthStateChange 监听...');
       supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔔 鉴权状态变化:', event, session?.user?.email);
         if (session?.user) {
@@ -77,29 +76,30 @@
           showAuthModal();
         }
       });
-      console.log('✅ onAuthStateChange 监听已注册');
 
-      console.log('📦 正在获取当前会话...');
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('❌ getSession 出错:', sessionError);
-        throw sessionError;
+      // 获取会话，容忍错误
+      let session = null;
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        session = data.session;
+      } catch (e) {
+        console.warn('⚠️ 无法获取会话，清除本地存储并显示登录:', e.message);
+        await supabase.auth.signOut({ scope: 'local' }); // 只清除本地，不通知服务器
       }
-      console.log('📦 当前会话:', session?.user?.email);
-      if (session) {
+
+      if (session?.user) {
         currentUser = session.user;
         await fetchUserRole();
-        console.log('👤 角色:', userRole);
         showApp();
         loadData();
         updateStats();
       } else {
-        console.log('❌ 无会话，显示登录框');
         showAuthModal();
       }
     } catch (err) {
       console.error('❌ 初始化失败:', err);
-      alert('系统初始化失败，请检查 Supabase 配置。错误：' + err.message);
+      showAuthModal(); // 最后兜底，确保登录框出现
     }
   }
 
