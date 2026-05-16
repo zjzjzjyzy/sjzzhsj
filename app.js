@@ -59,7 +59,7 @@
   async function initAuth() {
     try {
       console.log('🚀 初始化 Supabase...');
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supabase = window.supabase.createClient(https://ungjwmttwczkrulodbpa.supabase.co, eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM);
       console.log('✅ Supabase 客户端创建成功');
 
       supabase.auth.onAuthStateChange(async (event, session) => {
