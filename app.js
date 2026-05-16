@@ -1,21 +1,13 @@
-// 立即执行函数，避免全局变量冲突
 (function () {
-  // ======================== 配置 ========================
-  const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';   // 👈 你的 Supabase URL
+  const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM';
 
-  // ======================== 全局变量 ========================
-  let supabase = null;
-  let currentUser = null;
-  let userRole = 'user';
-  let currentView = 'wechat';
-  let wechatAccounts = [];
-  let qqAccounts = [];
-
+  let supabase, currentUser, userRole = 'user', currentView = 'wechat';
+  let wechatAccounts = [], qqAccounts = [];
   const NINE_GRID_DAILY_COST_WAN = 2000;
   const HB_TO_RMB_RATE = 38;
 
-  // ======================== DOM 元素 ========================
+  // DOM elements
   const appDiv = document.getElementById('app');
   const authModal = document.getElementById('authModal');
   const loadingOverlay = document.getElementById('loadingOverlay');
@@ -32,7 +24,7 @@
 
   let isLoginMode = true;
 
-  // ======================== 工具函数 ========================
+  // Toast
   function showToast(msg) {
     const existing = document.querySelector('.toast-notice');
     if (existing) existing.remove();
@@ -55,11 +47,28 @@
     return String(str).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] || m));
   }
 
-  // ======================== 鉴权逻辑 ========================
+  // ============== 关键修复：无论如何 4 秒后必须显示登录框 ==============
+  setTimeout(() => {
+    if (appDiv.style.display !== 'block' && authModal.style.display !== 'flex') {
+      console.warn('⚠️ 4秒未正常显示界面，强制弹出登录框');
+      authModal.style.display = 'flex';
+      authModal.style.position = 'fixed';
+      authModal.style.top = '0';
+      authModal.style.left = '0';
+      authModal.style.width = '100%';
+      authModal.style.height = '100%';
+      authModal.style.background = 'rgba(0,0,0,0.6)';
+      authModal.style.alignItems = 'center';
+      authModal.style.justifyContent = 'center';
+      authModal.style.zIndex = '3000';
+    }
+  }, 4000);
+
+  // ============== 鉴权逻辑 ==============
   async function initAuth() {
     try {
       console.log('🚀 初始化 Supabase...');
-      supabase = window.supabase.createClient(https://ungjwmttwczkrulodbpa.supabase.co, eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM);
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       console.log('✅ Supabase 客户端创建成功');
 
       supabase.auth.onAuthStateChange(async (event, session) => {
@@ -77,15 +86,14 @@
         }
       });
 
-      // 获取会话，容忍错误
       let session = null;
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         session = data.session;
       } catch (e) {
-        console.warn('⚠️ 无法获取会话，清除本地存储并显示登录:', e.message);
-        await supabase.auth.signOut({ scope: 'local' }); // 只清除本地，不通知服务器
+        console.warn('⚠️ 获取会话失败，清除本地缓存并继续:', e.message);
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
       }
 
       if (session?.user) {
@@ -98,11 +106,10 @@
         showAuthModal();
       }
     } catch (err) {
-      console.error('❌ 初始化失败:', err);
-      showAuthModal(); // 最后兜底，确保登录框出现
+      console.error('❌ 初始化异常:', err);
+      showAuthModal(); // 兜底
     }
   }
-
 
   async function fetchUserRole() {
     if (!currentUser) return;
@@ -119,7 +126,6 @@
   function showAuthModal() {
     appDiv.style.display = 'none';
     authModal.style.display = 'flex';
-    // 兜底样式（防止 CSS 加载失败时仍可见）
     authModal.style.position = 'fixed';
     authModal.style.top = '0';
     authModal.style.left = '0';
@@ -131,7 +137,7 @@
     authModal.style.zIndex = '3000';
   }
 
-  // ======================== 登录/注册表单 ========================
+  // ============== 登录/注册 ==============
   switchAuthBtn.addEventListener('click', () => {
     isLoginMode = !isLoginMode;
     authTitle.innerText = isLoginMode ? '🔐 登录' : '📝 注册';
@@ -584,6 +590,6 @@
   resetBtn.addEventListener('click', resetCurrentView);
   tabBtns.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
 
-  // ======================== 启动 ========================
+  // 末尾启动
   initAuth();
 })();
