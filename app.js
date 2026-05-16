@@ -1,3 +1,4 @@
+// 立即执行函数，避免全局变量冲突
 (function () {
   // ======================== 配置 ========================
   const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';   // 👈 你的 Supabase URL
@@ -56,32 +57,43 @@
 
   // ======================== 鉴权逻辑 ========================
   async function initAuth() {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    try {
+      console.log('🚀 初始化 Supabase...');
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('✅ Supabase 客户端创建成功');
 
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('🔔 鉴权状态变化:', event, session?.user?.email);
+        if (session?.user) {
+          currentUser = session.user;
+          await fetchUserRole();
+          showApp();
+          loadData();
+          updateStats();
+        } else {
+          currentUser = null;
+          userRole = 'user';
+          showAuthModal();
+        }
+      });
+
+      // 初始检查会话
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('📦 当前会话:', session?.user?.email);
+      if (session) {
         currentUser = session.user;
         await fetchUserRole();
+        console.log('👤 角色:', userRole);
         showApp();
         loadData();
         updateStats();
       } else {
-        currentUser = null;
-        userRole = 'user';
+        console.log('❌ 无会话，显示登录框');
         showAuthModal();
       }
-    });
-
-    // 初始检查会话
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      currentUser = session.user;
-      await fetchUserRole();
-      showApp();
-      loadData();
-      updateStats();
-    } else {
-      showAuthModal();
+    } catch (err) {
+      console.error('❌ 初始化失败:', err);
+      alert('系统初始化失败，请检查 Supabase 配置。');
     }
   }
 
@@ -100,13 +112,17 @@
   function showAuthModal() {
     appDiv.style.display = 'none';
     authModal.style.display = 'flex';
+    // 兜底样式（防止 CSS 加载失败时仍可见）
+    authModal.style.position = 'fixed';
+    authModal.style.top = '0';
+    authModal.style.left = '0';
+    authModal.style.width = '100%';
+    authModal.style.height = '100%';
+    authModal.style.background = 'rgba(0,0,0,0.6)';
+    authModal.style.alignItems = 'center';
+    authModal.style.justifyContent = 'center';
+    authModal.style.zIndex = '3000';
   }
-
-  logoutBtn.addEventListener('click', async () => {
-    setLoading(true);
-    await supabase.auth.signOut();
-    setLoading(false);
-  });
 
   // ======================== 登录/注册表单 ========================
   switchAuthBtn.addEventListener('click', () => {
@@ -143,6 +159,12 @@
     } finally {
       setLoading(false);
     }
+  });
+
+  logoutBtn.addEventListener('click', async () => {
+    setLoading(true);
+    await supabase.auth.signOut();
+    setLoading(false);
   });
 
   // ======================== 数据操作 ========================
@@ -411,7 +433,7 @@
       await updateAccountField(rowIdx, field, newVal);
     };
 
-    const cancel = () => { /* 由 renderTable 重新渲染恢复 */ renderTable(); };
+    const cancel = () => { renderTable(); }; // 恢复整个表格
 
     editor.addEventListener('blur', save);
     editor.addEventListener('keydown', e => {

@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=1.5">
   <title>哈弗币专业管家 · 多租户安全版</title>
-  <link rel="icon" href="yanyuge.ico" type="image/x-icon">
   <link rel="stylesheet" href="styles.css">
+  <!-- 可选：使用 emoji 作为浏览器标签图标 -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -54,7 +55,7 @@
   </div>
 </div>
 
-<!-- 登录/注册模态框（初始隐藏） -->
+<!-- 登录/注册模态框（初始隐藏，由 JS 控制显示） -->
 <div id="authModal" class="auth-modal" style="display:none">
   <div class="auth-box">
     <h2 id="authTitle">🔐 登录</h2>

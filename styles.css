@@ -64,9 +64,9 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: 0.2s;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
-  border: 1px solid rgba(255,255,255,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   white-space: nowrap;
 }
 
@@ -85,14 +85,14 @@ body {
 }
 
 .btn-outline:hover {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* 统计栏 */
 .stats-row {
   display: flex;
   gap: 10px 20px;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0, 0, 0, 0.4);
   border-radius: 60px;
   padding: 8px 20px;
   font-size: 0.85rem;
@@ -159,7 +159,8 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.78rem;
-  min-width: 1600px;  /* 大表格，确保内容不挤压 */
+  min-width: 1600px;
+  /* 大表格，确保内容不挤压 */
 }
 
 .data-table th {
@@ -198,12 +199,35 @@ body {
   font-weight: 500;
 }
 
-.status-sold { background: #fee2e2; color: #b91c1c; }
-.status-unsold { background: #dcfce7; color: #15803d; }
-.status-waiting { background: #fff3cd; color: #856404; }
-.credit-ok { background: #d1fae5; color: #065f46; }
-.credit-bad { background: #ffe4e2; color: #b91c1c; }
-.credit-normal { background: #e2e8f0; color: #334155; }
+.status-sold {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.status-unsold {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-waiting {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.credit-ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.credit-bad {
+  background: #ffe4e2;
+  color: #b91c1c;
+}
+
+.credit-normal {
+  background: #e2e8f0;
+  color: #334155;
+}
 
 .row-cover-active {
   background-color: #e0f2fe !important;
@@ -300,24 +324,42 @@ body {
   border-radius: 40px;
   font-size: 0.85rem;
   font-weight: 500;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
   z-index: 1000;
   animation: fadeInOut 3s ease forwards;
   pointer-events: none;
 }
 
 @keyframes fadeInOut {
-  0% { opacity: 0; transform: translateY(20px); }
-  15% { opacity: 1; transform: translateY(0); }
-  85% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(20px); }
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
 }
 
 /* 加载覆盖层 */
 .loading-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -331,8 +373,11 @@ body {
 /* 登录模态框 */
 .auth-modal {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.6);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -347,7 +392,7 @@ body {
   border-radius: 24px;
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
 .auth-box h2 {
@@ -376,24 +421,30 @@ body {
   body {
     padding: 8px;
   }
+
   .header {
     padding: 12px 16px;
     gap: 10px;
   }
+
   .stats-row {
     width: 100%;
     justify-content: center;
     font-size: 0.75rem;
     padding: 8px 12px;
   }
+
   .highlight {
     font-size: 0.9rem;
   }
+
   .tab-btn {
     padding: 10px 16px;
     font-size: 0.85rem;
   }
-  .data-table th, .data-table td {
+
+  .data-table th,
+  .data-table td {
     padding: 8px 4px;
     font-size: 0.7rem;
   }
