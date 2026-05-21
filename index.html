@@ -3,19 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=1.5">
-  <title>哈弗币专业管家 · 多租户安全版</title>
+  <title>哈弗币专业管家 · 图表版</title>
   <link rel="stylesheet" href="styles.css">
-  <!-- 可选：使用 emoji 作为浏览器标签图标 -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
-  <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
-<!-- 应用主体（初始隐藏，待鉴权成功显示） -->
 <div id="app" style="display:none">
   <div class="dashboard">
-    <div class="header">
+    <!-- 主视图头部 -->
+    <div class="header" id="mainHeader">
       <div class="title">
         <h1>🎮 哈弗币 · 专业管家</h1>
         <p>微信 / QQ 数据 | 多租户安全 | 云同步</p>
@@ -23,6 +22,7 @@
       <div class="user-area">
         <span id="userGreeting"></span>
         <button class="btn btn-outline" id="logoutBtn">退出</button>
+        <button class="btn btn-outline" id="chartViewBtn">📈 统计图表</button>
       </div>
       <div class="stats-row" id="statsPanel">
         <div class="stats-item">💰 今日收入: <span class="highlight" id="todayIncome">0.00</span> 元</div>
@@ -36,26 +36,55 @@
       </div>
     </div>
 
-    <div class="tabs-container">
-      <button class="tab-btn active" data-view="wechat">💬 微信账号</button>
-      <button class="tab-btn" data-view="qq">🐧 QQ账号</button>
+    <!-- 图表视图头部（默认隐藏） -->
+    <div class="header" id="chartHeader" style="display:none;">
+      <div class="title">
+        <h1>📊 数据分析</h1>
+      </div>
+      <div class="user-area">
+        <button class="btn btn-outline" id="backToMainBtn">↩️ 返回主界面</button>
+      </div>
     </div>
 
-    <div class="table-wrapper">
-      <table class="data-table" id="dataTable">
-        <thead id="tableHeader"></thead>
-        <tbody id="tableBody"></tbody>
-      </table>
+    <!-- 主表格容器 -->
+    <div id="mainTableView">
+      <div class="tabs-container">
+        <button class="tab-btn active" data-view="wechat">💬 微信账号</button>
+        <button class="tab-btn" data-view="qq">🐧 QQ账号</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="dataTable">
+          <thead id="tableHeader"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="footer-stats">
+        <span>🔒 当前界面累计出售总额 :</span>
+        <span class="total-sales" id="totalSalesAll">0 元</span>
+      </div>
     </div>
 
-    <div class="footer-stats">
-      <span>🔒 当前界面累计出售总额 :</span>
-      <span class="total-sales" id="totalSalesAll">0 元</span>
+    <!-- 图表容器（默认隐藏） -->
+    <div id="chartViewContainer" style="display:none; flex:1; overflow:auto; padding:20px;">
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>📈 今日销售额走势 (元/小时)</h3>
+          <canvas id="salesChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>⚡ 今日哈弗币变化 (万)</h3>
+          <canvas id="hbChangeChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>📊 累计总哈弗币走势 (万)</h3>
+          <canvas id="totalHbChart"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- 登录/注册模态框（初始隐藏，由 JS 控制显示） -->
+<!-- 登录模态框 -->
 <div id="authModal" class="auth-modal" style="display:none">
   <div class="auth-box">
     <h2 id="authTitle">🔐 登录</h2>
@@ -68,7 +97,6 @@
   </div>
 </div>
 
-<!-- 全局加载提示 -->
 <div class="loading-overlay" id="loadingOverlay" style="display:none">⏳ 加载中...</div>
 
 <script src="app.js"></script>
