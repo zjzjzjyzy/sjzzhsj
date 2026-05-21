@@ -22,6 +22,7 @@
   const authPassword = document.getElementById('authPassword');
   let isLoginMode = true;
 
+  // Toast
   function showToast(msg) {
     const existing = document.querySelector('.toast-notice');
     if (existing) existing.remove();
@@ -45,13 +46,40 @@
     return String(str).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] || m));
   }
 
-  // ========== 关键：初始化鉴权，带超时保护 ==========
+  // 从本地存储解析完整的 session 对象
+  function getLocalSession() {
+    try {
+      const raw = localStorage.getItem('supabase.auth.token');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.currentSession || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // 检查本地令牌是否过期
+  function isLocalTokenValid() {
+    const session = getLocalSession();
+    if (!session?.access_token || !session?.expires_at) return false;
+    return session.expires_at > Math.floor(Date.now() / 1000);
+  }
+
+  // 初始化认证（绕过可能卡死的自动刷新）
   async function initAuth() {
     try {
-      console.log('🚀 初始化 Supabase...');
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      console.log('✅ Supabase 客户端创建成功');
+      console.log('🚀 初始化 Supabase（禁用自动令牌刷新）...');
+      // 关键配置：禁止自动刷新令牌，避免 getSession 挂起
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          autoRefreshToken: false,    // 不自动刷新
+          persistSession: true,
+          detectSessionInUrl: false
+        }
+      });
+      console.log('✅ 客户端创建成功');
 
+      // 监听认证状态变化（登录/登出时触发）
       supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔔 鉴权状态变化:', event, session?.user?.email);
         if (session?.user) {
@@ -62,8 +90,9 @@
             await loadData();
             await updateStats();
           } catch (e) {
-            console.error('💥 登录后初始化失败:', e);
+            console.error('💥 登录初始化失败:', e);
             showToast('初始化出错: ' + e.message);
+            showAuthModal();
           }
         } else {
           currentUser = null;
@@ -72,38 +101,35 @@
         }
       });
 
-      // 主动检查并清理可能无效的本地令牌
-      const localSession = JSON.parse(localStorage.getItem('supabase.auth.token') || 'null');
-      if (localSession?.currentSession?.expires_at) {
-        const expiresAt = localSession.currentSession.expires_at;
-        if (expiresAt < Math.floor(Date.now() / 1000)) {
-          console.warn('⚠️ 本地令牌已过期，主动清除');
-          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      // 手动恢复会话：仅当本地令牌有效时才恢复
+      const localValid = isLocalTokenValid();
+      console.log('📦 本地令牌有效?', localValid);
+
+      if (localValid) {
+        const localSession = getLocalSession();
+        console.log('🔄 尝试恢复会话...');
+        try {
+          // 使用本地存储的 refresh_token 恢复会话（不会发起网络刷新请求）
+          const { data, error } = await supabase.auth.setSession({
+            access_token: localSession.access_token,
+            refresh_token: localSession.refresh_token
+          });
+          if (error) throw error;
+          // 恢复成功，onAuthStateChange 会自动触发后续流程
+          if (!data.session) {
+            console.warn('⚠️ 恢复会话未返回有效会话，清除令牌');
+            await supabase.auth.signOut({ scope: 'local' });
+            showAuthModal();
+          }
+        } catch (e) {
+          console.warn('⚠️ 恢复会话失败，清除令牌并显示登录:', e.message);
+          await supabase.auth.signOut({ scope: 'local' });
+          showAuthModal();
         }
-      }
-
-      // 带超时的 getSession
-      console.log('📦 正在获取会话（5秒超时）...');
-      let session = null;
-      try {
-        const result = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-        ]);
-        session = result.data?.session;
-      } catch (e) {
-        console.warn('⚠️ 获取会话出错或超时，清除本地令牌:', e.message);
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
-      }
-
-      if (session?.user) {
-        currentUser = session.user;
-        await fetchUserRole();
-        showApp();
-        await loadData();
-        await updateStats();
       } else {
-        console.log('❌ 无有效会话，显示登录框');
+        // 令牌无效或不存在，清除残留并直接显示登录框（不调用 getSession）
+        console.log('🧹 清除无效令牌并显示登录框');
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
         showAuthModal();
       }
     } catch (err) {
@@ -133,6 +159,7 @@
   function showAuthModal() {
     appDiv.style.display = 'none';
     authModal.style.display = 'flex';
+    // 保证即使 CSS 未加载也能居中显示
     authModal.style.position = 'fixed';
     authModal.style.top = '0';
     authModal.style.left = '0';
@@ -144,7 +171,7 @@
     authModal.style.zIndex = '3000';
   }
 
-  // ========== 登录/注册 ==========
+  // ======================== 登录/注册（保持原逻辑） ========================
   switchAuthBtn.addEventListener('click', () => {
     isLoginMode = !isLoginMode;
     authTitle.innerText = isLoginMode ? '🔐 登录' : '📝 注册';
@@ -162,7 +189,7 @@
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
           if (error.message.includes('Invalid login credentials')) throw new Error('邮箱或密码错误');
-          if (error.message.includes('Email not confirmed')) throw new Error('邮箱未验证，请检查收件箱（含垃圾邮件）并点击确认链接');
+          if (error.message.includes('Email not confirmed')) throw new Error('邮箱未验证，请检查收件箱并点击确认链接');
           throw error;
         }
         showToast('登录成功');
@@ -193,7 +220,7 @@
     setLoading(false);
   });
 
-  // ========== 数据操作（无改动） ==========
+  // ======================== 数据操作（无需修改） ========================
   async function loadData() {
     if (!currentUser) return;
     setLoading(true);
@@ -301,6 +328,7 @@
     document.getElementById('globalHbEstimate').innerText = (totalHb / HB_TO_RMB_RATE).toFixed(2);
   }
 
+  // ======================== 表格渲染 ========================
   function renderTable() {
     const accounts = getCurrentAccounts();
     const cols = getColumns();
@@ -531,5 +559,12 @@
   resetBtn.addEventListener('click', resetCurrentView);
   tabBtns.forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
 
+  // 全局未捕获 Promise 错误兜底
+  window.addEventListener('unhandledrejection', function(event) {
+    console.error('💥 未捕获的异步错误:', event.reason);
+    showAuthModal();
+  });
+
+  // 启动
   initAuth();
 })();
