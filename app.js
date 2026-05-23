@@ -2,10 +2,11 @@
   const SUPABASE_URL = 'https://ungjwmttwczkrulodbpa.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVuZ2p3bXR0d2N6a3J1bG9kYnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTYyMTYsImV4cCI6MjA5MTAzMjIxNn0.8tgP7u7kjrSo8U10z7oDocX8jpiWvxCZAbyGSXQEkEM';
 
+  // ======================== 全局变量 ========================
   let supabase, currentUser, userRole = 'user', currentView = 'wechat';
   let wechatAccounts = [], qqAccounts = [];
   const NINE_GRID_DAILY_COST_WAN = 2000;
-  const HB_TO_RMB_RATE = 38;
+  let hbToRmbRate = parseFloat(localStorage.getItem('hbToRmbRate')) || 38; // 自定义汇率
 
   // DOM 元素
   const appDiv = document.getElementById('app');
@@ -23,14 +24,14 @@
   const authPassword = document.getElementById('authPassword');
   let isLoginMode = true;
 
-  // 视图切换元素
+  // 视图切换
   const mainHeader = document.getElementById('mainHeader');
   const chartHeader = document.getElementById('chartHeader');
   const mainTableView = document.getElementById('mainTableView');
   const chartViewContainer = document.getElementById('chartViewContainer');
   let chartInstances = {};
 
-  // 工具函数
+  // ======================== 工具函数 ========================
   function showToast(msg) {
     const existing = document.querySelector('.toast-notice');
     if (existing) existing.remove();
@@ -54,18 +55,13 @@
     return String(str).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] || m));
   }
 
-  // ======================== 认证（终极修复版） ========================
+  // ======================== 认证 ========================
   async function initAuth() {
     try {
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-          autoRefreshToken: false,   // 关键1：不自动刷新，避免后台挂起
-          persistSession: true,
-          detectSessionInUrl: false
-        }
+        auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false }
       });
 
-      // 监听状态变化，登录/登出时触发
       supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
           currentUser = session.user;
@@ -80,40 +76,32 @@
         }
       });
 
-      // 关键2：从本地存储获取 session，不调用 getSession（避免挂起）
-      const localSessionStr = localStorage.getItem('supabase.auth.token');
-      let localSession = null;
-      try {
-        const parsed = JSON.parse(localSessionStr);
-        localSession = parsed?.currentSession;
-      } catch (e) {}
-
-      // 判断本地令牌是否过期
-      const isValid = localSession?.access_token && localSession?.expires_at > Math.floor(Date.now() / 1000);
-
-      if (isValid) {
-        // 尝试用本地令牌设置会话，并设置超时
+      // 加强本地令牌检查，避免无效令牌导致白屏
+      const rawToken = localStorage.getItem('supabase.auth.token');
+      if (rawToken) {
         try {
-          const setSessionPromise = supabase.auth.setSession({
-            access_token: localSession.access_token,
-            refresh_token: localSession.refresh_token
+          const parsed = JSON.parse(rawToken);
+          const expiresAt = parsed?.currentSession?.expires_at;
+          if (!expiresAt || expiresAt <= Math.floor(Date.now() / 1000)) {
+            await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+            showAuthModal();
+            return;
+          }
+          const { error } = await supabase.auth.setSession({
+            access_token: parsed.currentSession.access_token,
+            refresh_token: parsed.currentSession.refresh_token
           });
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('setSession timeout')), 5000));
-          const { data, error } = await Promise.race([setSessionPromise, timeoutPromise]);
           if (error) throw error;
-          // 设置成功，onAuthStateChange 会自动调用 showApp
-        } catch (err) {
-          console.warn('恢复会话失败或超时，清除本地令牌并显示登录框', err.message);
+        } catch (e) {
+          console.warn('恢复会话失败，清除本地令牌', e);
           await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
           showAuthModal();
         }
       } else {
-        // 没有有效本地令牌，直接显示登录框
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
         showAuthModal();
       }
-    } catch (e) {
-      console.error('初始化异常:', e);
+    } catch (err) {
+      console.error('初始化异常', err);
       showAuthModal();
     }
   }
@@ -132,22 +120,37 @@
     appDiv.style.display = 'block';
     authModal.style.display = 'none';
     userGreeting.innerText = `${currentUser.email} (${userRole === 'admin' ? '👑 管理员' : '👤 用户'})`;
+    // 添加汇率设置按钮（仅一次）
+    if (!document.getElementById('rateBtn')) {
+      const rateBtn = document.createElement('button');
+      rateBtn.id = 'rateBtn';
+      rateBtn.className = 'btn btn-outline';
+      rateBtn.style.marginLeft = '8px';
+      rateBtn.innerText = '⚙️ 汇率设置';
+      rateBtn.addEventListener('click', changeRate);
+      document.querySelector('.user-area').appendChild(rateBtn);
+    }
     switchToMainView();
   }
 
   function showAuthModal() {
     appDiv.style.display = 'none';
     authModal.style.display = 'flex';
-    // 兜底样式
-    authModal.style.position = 'fixed';
-    authModal.style.top = '0';
-    authModal.style.left = '0';
-    authModal.style.width = '100%';
-    authModal.style.height = '100%';
-    authModal.style.background = 'rgba(0,0,0,0.6)';
-    authModal.style.alignItems = 'center';
-    authModal.style.justifyContent = 'center';
-    authModal.style.zIndex = '3000';
+  }
+
+  // ======================== 汇率设置 ========================
+  function changeRate() {
+    const newRate = prompt(`当前汇率：${hbToRmbRate} 万哈弗币 = 1 元\n请输入新的汇率（万/元）`, hbToRmbRate);
+    if (newRate === null) return;
+    const rate = parseFloat(newRate);
+    if (isNaN(rate) || rate <= 0) {
+      showToast('请输入有效的正数');
+      return;
+    }
+    hbToRmbRate = rate;
+    localStorage.setItem('hbToRmbRate', rate);
+    showToast(`✅ 汇率已更新为 ${rate} 万/元`);
+    updateStats();
   }
 
   // ======================== 视图切换 ========================
@@ -221,7 +224,7 @@
     setLoading(false);
   });
 
-  // ======================== 数据操作（无改动） ========================
+  // ======================== 数据操作 ========================
   async function loadData() {
     if (!currentUser) return;
     setLoading(true);
@@ -294,7 +297,8 @@
       account_name: acc.name,
       platform: acc.platform,
       amount: amount
-    }).then(() => updateStats());
+    });
+    updateStats();
   }
 
   async function handleStatusChange(acc, oldStatus, newStatus) {
@@ -317,6 +321,7 @@
     }
   }
 
+  // ======================== 统计（修正全部累计 + 汇率） ========================
   async function updateStats() {
     if (!currentUser) return;
     const now = new Date();
@@ -325,24 +330,27 @@
 
     let todayQ = supabase.from('sales').select('amount').gte('sold_at', startOfDay);
     let monthQ = supabase.from('sales').select('amount').gte('sold_at', startOfMonth);
-    let allQ = supabase.from('sales').select('amount');
     if (userRole !== 'admin') {
       todayQ = todayQ.eq('user_id', currentUser.id);
       monthQ = monthQ.eq('user_id', currentUser.id);
-      allQ = allQ.eq('user_id', currentUser.id);
     }
 
-    const [todayRes, monthRes, allRes] = await Promise.all([todayQ, monthQ, allQ]);
+    const [todayRes, monthRes] = await Promise.all([todayQ, monthQ]);
     const sum = (data) => data.reduce((s, r) => s + parseFloat(r.amount), 0);
 
     document.getElementById('todayIncome').innerText = sum(todayRes.data).toFixed(2);
     document.getElementById('monthIncome').innerText = sum(monthRes.data).toFixed(2);
-    document.getElementById('globalTotalAmount').innerText = sum(allRes.data).toFixed(2);
 
-    let totalHb = 0;
-    (userRole === 'admin' ? [...wechatAccounts, ...qqAccounts] : getCurrentAccounts())
-      .forEach(a => totalHb += (a.hbCoin || 0));
-    document.getElementById('globalHbEstimate').innerText = (totalHb / HB_TO_RMB_RATE).toFixed(2);
+    // 全部累计：所有账号（微信+QQ）的 totalSaleAmount 累加
+    const allAccounts = [...wechatAccounts, ...qqAccounts];
+    const totalAll = allAccounts.reduce((s, a) => s + (a.totalSaleAmount || 0), 0);
+    document.getElementById('globalTotalAmount').innerText = totalAll.toFixed(2);
+
+    // 哈弗币估值（使用自定义汇率）
+    const totalHb = allAccounts.reduce((s, a) => s + (a.hbCoin || 0), 0);
+    document.getElementById('globalHbEstimate').innerText = (totalHb / hbToRmbRate).toFixed(2);
+    const rateSmall = document.querySelector('#statsPanel small');
+    if (rateSmall) rateSmall.innerText = `(${hbToRmbRate}万=1元)`;
   }
 
   // ======================== 表格渲染 ========================
@@ -350,6 +358,7 @@
     const accounts = getCurrentAccounts();
     const cols = getColumns();
     document.getElementById('tableHeader').innerHTML = `<tr>${cols.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
+
     const tbody = document.getElementById('tableBody');
     if (!accounts.length) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="${cols.length}">✨ 暂无账号，点击新增 ✨</td></tr>`;
@@ -669,7 +678,7 @@
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
-    // 1. 今日销售额
+    // 1. 今日销售额按小时
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     let salesQuery = supabase.from('sales').select('amount, sold_at').gte('sold_at', startOfDay);
     if (userRole !== 'admin') salesQuery = salesQuery.eq('user_id', currentUser.id);
@@ -683,13 +692,7 @@
       type: 'line',
       data: {
         labels: Array.from({ length: 24 }, (_, i) => `${i}时`),
-        datasets: [{
-          label: '销售额 (元)',
-          data: hourlySales,
-          borderColor: '#2c7da0',
-          tension: 0.3,
-          fill: false
-        }]
+        datasets: [{ label: '销售额 (元)', data: hourlySales, borderColor: '#2c7da0', tension: 0.3, fill: false }]
       },
       options: { responsive: true }
     });
@@ -722,11 +725,7 @@
       type: 'bar',
       data: {
         labels: ['今日变化'],
-        datasets: [{
-          label: '变化量 (万)',
-          data: [todayChange],
-          backgroundColor: todayChange >= 0 ? '#16a34a' : '#dc2626'
-        }]
+        datasets: [{ label: '变化量 (万)', data: [todayChange], backgroundColor: todayChange >= 0 ? '#16a34a' : '#dc2626' }]
       },
       options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
@@ -753,14 +752,7 @@
       type: 'line',
       data: {
         labels: dates,
-        datasets: [{
-          label: '总哈弗币 (万)',
-          data: totals,
-          borderColor: '#0f172a',
-          tension: 0.2,
-          fill: false,
-          pointRadius: 3
-        }]
+        datasets: [{ label: '总哈弗币 (万)', data: totals, borderColor: '#0f172a', tension: 0.2, fill: false, pointRadius: 3 }]
       },
       options: {
         responsive: true,
@@ -773,14 +765,8 @@
   }
 
   // ======================== 全局错误兜底 ========================
-  window.addEventListener('error', e => {
-    console.error('全局错误', e.error);
-    showAuthModal();
-  });
-  window.addEventListener('unhandledrejection', e => {
-    console.error('未捕获异步', e.reason);
-    showAuthModal();
-  });
+  window.addEventListener('error', e => { console.error('全局错误', e.error); showAuthModal(); });
+  window.addEventListener('unhandledrejection', e => { console.error('未捕获异步', e.reason); showAuthModal(); });
 
   // ======================== 启动 ========================
   initAuth();
