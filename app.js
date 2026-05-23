@@ -54,13 +54,18 @@
     return String(str).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m] || m));
   }
 
-  // ======================== 认证 ========================
+  // ======================== 认证（终极修复版） ========================
   async function initAuth() {
     try {
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { autoRefreshToken: false, persistSession: true, detectSessionInUrl: false }
+        auth: {
+          autoRefreshToken: false,   // 关键1：不自动刷新，避免后台挂起
+          persistSession: true,
+          detectSessionInUrl: false
+        }
       });
 
+      // 监听状态变化，登录/登出时触发
       supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
           currentUser = session.user;
@@ -75,14 +80,40 @@
         }
       });
 
-      const localSession = JSON.parse(localStorage.getItem('supabase.auth.token') || 'null')?.currentSession;
-      if (localSession?.access_token && localSession?.expires_at > Math.floor(Date.now() / 1000)) {
-        await supabase.auth.setSession({ access_token: localSession.access_token, refresh_token: localSession.refresh_token });
+      // 关键2：从本地存储获取 session，不调用 getSession（避免挂起）
+      const localSessionStr = localStorage.getItem('supabase.auth.token');
+      let localSession = null;
+      try {
+        const parsed = JSON.parse(localSessionStr);
+        localSession = parsed?.currentSession;
+      } catch (e) {}
+
+      // 判断本地令牌是否过期
+      const isValid = localSession?.access_token && localSession?.expires_at > Math.floor(Date.now() / 1000);
+
+      if (isValid) {
+        // 尝试用本地令牌设置会话，并设置超时
+        try {
+          const setSessionPromise = supabase.auth.setSession({
+            access_token: localSession.access_token,
+            refresh_token: localSession.refresh_token
+          });
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('setSession timeout')), 5000));
+          const { data, error } = await Promise.race([setSessionPromise, timeoutPromise]);
+          if (error) throw error;
+          // 设置成功，onAuthStateChange 会自动调用 showApp
+        } catch (err) {
+          console.warn('恢复会话失败或超时，清除本地令牌并显示登录框', err.message);
+          await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+          showAuthModal();
+        }
       } else {
+        // 没有有效本地令牌，直接显示登录框
         await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
         showAuthModal();
       }
     } catch (e) {
+      console.error('初始化异常:', e);
       showAuthModal();
     }
   }
@@ -107,6 +138,16 @@
   function showAuthModal() {
     appDiv.style.display = 'none';
     authModal.style.display = 'flex';
+    // 兜底样式
+    authModal.style.position = 'fixed';
+    authModal.style.top = '0';
+    authModal.style.left = '0';
+    authModal.style.width = '100%';
+    authModal.style.height = '100%';
+    authModal.style.background = 'rgba(0,0,0,0.6)';
+    authModal.style.alignItems = 'center';
+    authModal.style.justifyContent = 'center';
+    authModal.style.zIndex = '3000';
   }
 
   // ======================== 视图切换 ========================
@@ -180,7 +221,7 @@
     setLoading(false);
   });
 
-  // ======================== 数据操作 ========================
+  // ======================== 数据操作（无改动） ========================
   async function loadData() {
     if (!currentUser) return;
     setLoading(true);
