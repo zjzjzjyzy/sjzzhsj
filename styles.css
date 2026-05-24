@@ -6,7 +6,7 @@
 body {
   background: #eef2f9;
   margin: 0;
-  padding: 8px;
+  padding: 0;
   min-height: 100vh;
   display: flex;
   align-items: flex-start;
@@ -17,16 +17,17 @@ body {
   width: 100%;
   max-width: 100%;
   background: white;
-  border-radius: 20px;
-  box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.15);
+  border-radius: 0;           /* 移动端直角，减少空间浪费 */
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  min-height: 100vh;
+  overflow-x: hidden;        /* 只隐藏横向溢出，避免整体水平滚动 */
 }
 
 /* ========== 头部 ========== */
 .header {
-  padding: 12px 16px;
+  padding: 12px 14px;
   background: linear-gradient(135deg, #0b2b3b, #1e3a4d);
   color: white;
   display: flex;
@@ -39,7 +40,7 @@ body {
 
 .title h1 {
   margin: 0;
-  font-size: clamp(1.1rem, 5vw, 1.6rem);
+  font-size: 1.2rem;
   font-weight: 600;
 }
 
@@ -52,18 +53,19 @@ body {
 .user-area {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .user-area span {
   font-size: 0.8rem;
+  margin-right: 4px;
 }
 
 /* 通用按钮 */
 .btn {
   border: none;
-  padding: 8px 16px;
+  padding: 8px 14px;
   border-radius: 40px;
   font-weight: 600;
   cursor: pointer;
@@ -74,7 +76,7 @@ body {
   white-space: nowrap;
   font-size: 0.8rem;
   backdrop-filter: blur(4px);
-  min-height: 40px;           /* 保证触摸区域 */
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -105,6 +107,7 @@ body {
   backdrop-filter: blur(6px);
   flex-wrap: wrap;
   align-items: center;
+  width: 100%;               /* 移动端占满宽，防止右溢 */
 }
 
 .stats-item {
@@ -118,7 +121,7 @@ body {
   font-weight: 700;
 }
 
-/* ========== 标签栏 (固定，确保可点击) ========== */
+/* ========== 标签栏 ========== */
 .tabs-container {
   background: #f1f5f9;
   border-bottom: 2px solid #cbd5e1;
@@ -142,7 +145,7 @@ body {
   border-bottom: 3px solid transparent;
   margin-bottom: -2px;
   white-space: nowrap;
-  min-height: 44px;            /* 扩大触摸区域 */
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
 }
@@ -170,7 +173,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.72rem;
-  min-width: 1000px;          /* 从1600降到1000，减少强制滚动距离 */
+  min-width: 900px;          /* 适当宽度，保证列不完全挤压 */
 }
 
 .data-table th {
@@ -195,7 +198,7 @@ body {
   background: white;
 }
 
-/* 固定第一列（#） */
+/* 固定第一、二列（仅 PC，移动端通过媒体查询取消） */
 .data-table th:nth-child(1),
 .data-table td:nth-child(1) {
   position: sticky;
@@ -203,16 +206,12 @@ body {
   z-index: 3;
   background: #f1f5f9;
 }
+.data-table td:nth-child(1) { background: white; }
 
-.data-table td:nth-child(1) {
-  background: white;
-}
-
-/* 固定第二列（昵称） */
 .data-table th:nth-child(2),
 .data-table td:nth-child(2) {
   position: sticky;
-  left: 32px;                 /* 根据第一列宽度预估 */
+  left: 32px;               /* 第一列大约宽度 */
   z-index: 3;
   background: white;
 }
@@ -225,7 +224,7 @@ body {
   background: #fefce8;
 }
 
-/* 徽章等保持不变 */
+/* 徽章等 */
 .badge {
   display: inline-block;
   padding: 3px 8px;
@@ -328,8 +327,8 @@ body {
 .toast-notice {
   position: fixed;
   bottom: 16px;
-  right: 16px;
   left: 16px;
+  right: 16px;
   background: #1e293b;
   color: #facc15;
   padding: 12px 18px;
@@ -430,18 +429,15 @@ canvas {
   max-height: 250px;
 }
 
-/* ========== 移动端特定优化 ========== */
+/* ========== 移动端彻底重置固定列 ========== */
 @media (max-width: 768px) {
-  body {
-    padding: 4px;
-  }
-
   .dashboard {
-    border-radius: 14px;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .header {
-    padding: 10px 12px;
+    padding: 10px 10px;
     gap: 6px;
   }
 
@@ -449,27 +445,23 @@ canvas {
     font-size: 1.1rem;
   }
 
-  .title p {
-    font-size: 0.65rem;
-  }
-
   .user-area {
-    gap: 4px;
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .btn {
     padding: 6px 12px;
     font-size: 0.7rem;
     min-height: 36px;
-    border-radius: 30px;
   }
 
   .stats-row {
-    width: 100%;
-    justify-content: center;
     font-size: 0.65rem;
     padding: 5px 10px;
     gap: 4px 8px;
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .highlight {
@@ -482,19 +474,27 @@ canvas {
     min-height: 40px;
   }
 
+  /* 取消表格固定列，恢复正常滚动 */
+  .data-table th:nth-child(1),
+  .data-table td:nth-child(1),
+  .data-table th:nth-child(2),
+  .data-table td:nth-child(2) {
+    position: static;
+    background: inherit;
+  }
+  .data-table th:nth-child(1),
+  .data-table td:nth-child(1) {
+    background: #f1f5f9;
+  }
+
   .data-table {
-    min-width: 800px;          /* 更窄也可滚动 */
+    min-width: 800px;        /* 保持可滚动 */
     font-size: 0.65rem;
   }
 
   .data-table th,
   .data-table td {
     padding: 5px 2px;
-  }
-
-  .data-table th:nth-child(2),
-  .data-table td:nth-child(2) {
-    left: 24px;
   }
 
   .footer-stats {
@@ -508,27 +508,5 @@ canvas {
 
   .chart-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-/* 超小屏幕 (< 400px) */
-@media (max-width: 400px) {
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .user-area {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .stats-row {
-    justify-content: flex-start;
-  }
-
-  .tab-btn {
-    padding: 6px 10px;
-    font-size: 0.75rem;
   }
 }
